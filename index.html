@@ -211,10 +211,22 @@ function parseCell(raw){
   return {v:"part", slots:hrs};
 }
 
-/* ---------- 통신 ---------- */
-async function api(payload){
-  const r = await fetch(CONFIG.endpoint, { method:"POST", body: JSON.stringify(payload) });
-  return r.json();
+/* ---------- 통신 ----------
+   Apps Script /exec 는 script.googleusercontent.com 으로 리다이렉트되는데
+   브라우저 fetch 는 그 리다이렉트에서 CORS 때문에 응답이 멈춥니다.
+   그래서 <script> 태그로 부르는 JSONP 를 씁니다. */
+function api(params){
+  return new Promise((resolve, reject) => {
+    const cb = "__jp" + Math.random().toString(36).slice(2);
+    const s  = document.createElement("script");
+    const q  = new URLSearchParams(Object.assign({}, params, { callback: cb }));
+    const done = () => { try { delete window[cb]; } catch(e){ window[cb] = undefined; } s.remove(); clearTimeout(t); };
+    const t = setTimeout(() => { done(); reject(new Error("timeout")); }, 30000);
+    window[cb] = data => { done(); resolve(data); };
+    s.onerror = () => { done(); reject(new Error("network")); };
+    s.src = CONFIG.endpoint + "?" + q.toString();
+    document.head.appendChild(s);
+  });
 }
 function setStatus(t){ $("#status").textContent = t; }
 
@@ -391,12 +403,12 @@ function renderBoard(){
 $("#save").onclick = async () => {
   if (!me || busy) return;
   busy = true; $("#save").disabled = true; setStatus("저장 중…");
-  const payload = { action:"save", name: me, answers: {} };
-  DATES.forEach(d => { payload.answers[iso(d)] = cellValue(answers[iso(d)]); });
+  const sending = {};
+  DATES.forEach(d => { sending[iso(d)] = cellValue(answers[iso(d)]); });
   try{
-    const j = await api(payload);
+    const j = await api({ action:"save", name: me, payload: JSON.stringify(sending) });
     if (!j.ok) throw new Error(j.error || "실패");
-    everyone[me] = payload.answers;
+    everyone[me] = sending;
     setStatus("저장했습니다 ✓");
     renderNames(); renderBoard();
   }catch(e){ setStatus("저장 실패 — 다시 눌러주세요"); }
@@ -406,8 +418,8 @@ $("#save").onclick = async () => {
 async function load(){
   if (!ready()){ setStatus("설정 전입니다 (endpoint 미지정)"); renderNames(); renderBoard(); return; }
   try{
-    const r = await fetch(CONFIG.endpoint + "?action=load", {redirect:"follow"});
-    const j = await r.json();
+    const j = await api({ action:"load" });
+    if (!j.ok) throw new Error(j.error || "실패");
     members  = j.members || [];
     everyone = j.responses || {};
     setStatus("이름을 먼저 골라주세요");
