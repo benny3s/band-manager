@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>애쉬만루트 합주 일정</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#fff; --line:#e3e3df; --ink:#1c1c1a; --muted:#6f6f68;
+  --accent:#2f7d4f; --accent-soft:#e6f2ea; --no:#b4443a; --no-soft:#fbe9e7;
+  --partial:#9a6b1f; --partial-soft:#fbf1de; --shadow:0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#17181a; --card:#1f2124; --line:#31343a; --ink:#ececeb; --muted:#9a9a95;
+    --accent:#6dc08c; --accent-soft:#20352a; --no:#e28078; --no-soft:#3a2320;
+    --partial:#d7ac63; --partial-soft:#3a2f1b; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17181a; --card:#1f2124; --line:#31343a; --ink:#ececeb; --muted:#9a9a95;
+  --accent:#6dc08c; --accent-soft:#20352a; --no:#e28078; --no-soft:#3a2320;
+  --partial:#d7ac63; --partial-soft:#3a2f1b; --shadow:none;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
+       "Malgun Gothic",system-ui,sans-serif;
+  padding:0 16px 120px;-webkit-text-size-adjust:100%;
+}
+.wrap{max-width:620px;margin:0 auto}
+header{padding-block:26px 14px}
+h1{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sub{margin:0;color:var(--muted);font-size:13px}
+section{margin-top:22px}
+.label{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted);
+  text-transform:uppercase;margin:0 0 9px;display:flex;align-items:center;gap:10px}
+.label .link{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;
+  font-size:12px;color:var(--accent);background:none;border:0;cursor:pointer;padding:0}
+
+/* 이름 */
+.names{display:flex;flex-wrap:wrap;gap:8px}
+.name{border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:999px;padding:9px 16px;font-size:14px;font-weight:600;
+  cursor:pointer;box-shadow:var(--shadow)}
+.name[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.name .dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--accent);margin-left:7px;vertical-align:middle}
+.name[aria-pressed="true"] .dot{background:#fff}
+
+/* 멤버 관리 */
+.manage{display:none;margin-top:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:12px;box-shadow:var(--shadow)}
+.manage.open{display:block}
+.mrow{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+.mrow input{flex:1;min-width:0;border:1px solid var(--line);background:transparent;
+  color:var(--ink);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit}
+.mrow button{border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:8px;padding:9px 11px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
+.mrow button.danger{color:var(--no);border-color:var(--no)}
+.mrow button.go{color:#fff;background:var(--accent);border-color:var(--accent)}
+.mhint{margin:10px 0 0;font-size:11.5px;color:var(--muted)}
+
+/* 날짜 */
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;box-shadow:var(--shadow)}
+.row.dim{opacity:.45}
+.rowTop{display:flex;align-items:center;gap:10px}
+.date{flex:1;min-width:0}
+.date b{font-size:15px;font-weight:700}
+.date span{color:var(--muted);font-size:12px;margin-left:6px}
+.pick{display:flex;gap:5px;flex-shrink:0}
+.pick button{border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:8px;padding:7px 10px;font-size:13px;font-weight:700;cursor:pointer;min-width:38px}
+.pick button[aria-pressed="true"][data-v="ok"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.pick button[aria-pressed="true"][data-v="part"]{background:var(--partial-soft);border-color:var(--partial);color:var(--partial)}
+.pick button[aria-pressed="true"][data-v="no"]{background:var(--no-soft);border-color:var(--no);color:var(--no)}
+.slots{display:none;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.row.open .slots{display:flex}
+.slot{border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:7px;padding:6px 9px;font-size:12px;font-weight:600;cursor:pointer}
+.slot[aria-pressed="true"]{background:var(--partial-soft);border-color:var(--partial);color:var(--partial)}
+.hint{margin:8px 0 0;font-size:11.5px;color:var(--muted)}
+
+/* 현황 */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+th,td{padding:7px 9px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card);font-weight:700}
+thead th{font-size:11px;color:var(--muted);font-weight:700}
+tbody tr:last-child td{border-bottom:0}
+td.y{color:var(--accent);font-weight:700}
+td.n{color:var(--no)}
+td.p{color:var(--partial);font-weight:600;font-size:11.5px}
+tr.all td:first-child{color:var(--accent)}
+.empty{color:var(--muted);font-size:13px;padding:14px}
+
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);
+  border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.bar .inner{max-width:620px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.status{flex:1;font-size:12.5px;color:var(--muted);min-width:0}
+.save{border:0;background:var(--accent);color:#fff;border-radius:10px;
+  padding:12px 26px;font-size:15px;font-weight:700;cursor:pointer}
+.save:disabled{opacity:.4;cursor:default}
+footer{margin-top:26px;color:var(--muted);font-size:11.5px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>애쉬만루트 합주 가능 날짜</h1>
+  <p class="sub">그루브 사당점 C룸 · 기본 일요일 오전 10시~12시</p>
+</header>
+
+<section>
+  <p class="label">1. 본인 이름
+    <button class="link" id="manageBtn" type="button">멤버 관리</button>
+  </p>
+  <div class="names" id="names"></div>
+  <div class="manage" id="manage"></div>
+</section>
+
+<section id="dateSection" hidden>
+  <p class="label">2. 날짜별 가능 여부</p>
+  <div class="rows" id="rows"></div>
+  <p class="hint">○ = 10~12시 가능 · 시간 = 다른 시간대만 가능 (칸을 눌러 고르세요) · ✕ = 불가</p>
+</section>
+
+<section>
+  <p class="label">응답 현황</p>
+  <div class="scroll" id="board"><p class="empty">불러오는 중…</p></div>
+</section>
+
+<footer>
+  응답과 멤버 목록은 구글 시트에 저장됩니다. 언제든 다시 들어와 수정할 수 있어요.<br>
+  그루브는 12주 이내만 예약이 가능해서 앞으로 12주치 일요일만 보여줍니다.
+</footer>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <span class="status" id="status">이름을 먼저 골라주세요</span>
+    <button class="save" id="save" disabled>저장</button>
+  </div>
+</div>
+
+<script>
+/* ========= 설정 ========= */
+const CONFIG = {
+  endpoint: "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec",
+  weeks: 12,                  // 앞으로 몇 주치 일요일
+  slotStart: 9,
+  slotEnd: 22
+};
+/* ======================== */
+
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, "0");
+const ready = () => CONFIG.endpoint.indexOf("__") !== 0;
+
+function sundays(n){
+  const t = new Date(); t.setHours(0,0,0,0);
+  const d = new Date(t); d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  const out = [];
+  for (let i=0;i<n;i++){ out.push(new Date(d)); d.setDate(d.getDate()+7); }
+  return out;
+}
+const iso   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const short = d => `${d.getMonth()+1}/${d.getDate()}`;
+
+const DATES = sundays(CONFIG.weeks);
+let members  = [];
+let everyone = {};
+let me = null;
+let answers = {};
+let busy = false;
+
+const remember = v => { try { localStorage.setItem("hapju.me", v); } catch(e){} };
+const recall   = ()  => { try { return localStorage.getItem("hapju.me"); } catch(e){ return null; } };
+
+function toRange(hours){
+  const h = [...new Set(hours)].sort((a,b)=>a-b);
+  if (!h.length) return "";
+  const parts = []; let s = h[0], p = h[0];
+  for (let i=1;i<h.length;i++){
+    if (h[i] === p+1){ p = h[i]; continue; }
+    parts.push(`${pad(s)}-${pad(p+1)}`); s = p = h[i];
+  }
+  parts.push(`${pad(s)}-${pad(p+1)}`);
+  return parts.join(", ");
+}
+function cellValue(a){
+  if (!a) return "";
+  if (a.v === "ok") return "O";
+  if (a.v === "no") return "X";
+  return toRange(a.slots || []);
+}
+function parseCell(raw){
+  raw = (raw || "").trim();
+  if (!raw) return null;
+  if (raw === "O") return {v:"ok", slots:[]};
+  if (raw === "X") return {v:"no", slots:[]};
+  const hrs = [];
+  raw.split(",").forEach(seg => {
+    const m = seg.trim().match(/^(\d{1,2})-(\d{1,2})$/);
+    if (m) for (let h=+m[1]; h<+m[2]; h++) hrs.push(h);
+  });
+  return {v:"part", slots:hrs};
+}
+
+/* ---------- 통신 ---------- */
+async function api(payload){
+  const r = await fetch(CONFIG.endpoint, { method:"POST", body: JSON.stringify(payload) });
+  return r.json();
+}
+function setStatus(t){ $("#status").textContent = t; }
+
+/* ---------- 이름 ---------- */
+function renderNames(){
+  const box = $("#names"); box.innerHTML = "";
+  if (!members.length){
+    box.innerHTML = '<span class="empty" style="padding:0">멤버가 없습니다 — 멤버 관리에서 추가하세요</span>';
+    return;
+  }
+  members.forEach(nm => {
+    const b = document.createElement("button");
+    b.className = "name"; b.type = "button";
+    b.setAttribute("aria-pressed", String(nm === me));
+    const answered = everyone[nm] && Object.keys(everyone[nm]).length;
+    b.innerHTML = nm + (answered ? '<span class="dot"></span>' : "");
+    b.onclick = () => pickName(nm);
+    box.appendChild(b);
+  });
+}
+function pickName(nm){
+  me = nm; remember(nm);
+  answers = {};
+  const mine = everyone[nm] || {};
+  DATES.forEach(d => {
+    const a = parseCell(mine[iso(d)]);
+    if (a) answers[iso(d)] = a;
+  });
+  renderNames(); renderRows(); renderBoard();
+  $("#dateSection").hidden = false;
+  $("#save").disabled = false;
+  setStatus(`${nm} 님으로 응답 중`);
+}
+
+/* ---------- 멤버 관리 ---------- */
+$("#manageBtn").onclick = () => {
+  const p = $("#manage");
+  p.classList.toggle("open");
+  if (p.classList.contains("open")) renderManage();
+};
+function renderManage(){
+  const p = $("#manage"); p.innerHTML = "";
+  members.forEach(nm => {
+    const row = document.createElement("div"); row.className = "mrow";
+    const inp = document.createElement("input");
+    inp.value = nm; inp.setAttribute("aria-label", nm + " 이름");
+    const ren = document.createElement("button");
+    ren.type = "button"; ren.textContent = "변경";
+    ren.onclick = () => {
+      const v = inp.value.trim();
+      if (!v || v === nm) return;
+      act({action:"member_rename", from:nm, to:v}, `${nm} → ${v}`);
+    };
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "danger"; del.textContent = "삭제";
+    let armed = false;
+    del.onclick = () => {
+      if (!armed){ armed = true; del.textContent = "정말?"; setTimeout(()=>{armed=false;del.textContent="삭제";}, 3000); return; }
+      act({action:"member_remove", name:nm}, `${nm} 삭제`);
+    };
+    row.append(inp, ren, del); p.appendChild(row);
+  });
+
+  const add = document.createElement("div"); add.className = "mrow";
+  const ni = document.createElement("input");
+  ni.placeholder = "추가할 멤버 이름"; ni.setAttribute("aria-label","추가할 멤버 이름");
+  const ab = document.createElement("button");
+  ab.type = "button"; ab.className = "go"; ab.textContent = "추가";
+  const doAdd = () => { const v = ni.value.trim(); if (v) act({action:"member_add", name:v}, `${v} 추가`); };
+  ab.onclick = doAdd;
+  ni.onkeydown = e => { if (e.key === "Enter") doAdd(); };
+  add.append(ni, ab); p.appendChild(add);
+
+  const hint = document.createElement("p");
+  hint.className = "mhint";
+  hint.textContent = "멤버는 인원수 제한 없이 추가할 수 있어요. 삭제하면 그 사람 응답도 같이 지워집니다.";
+  p.appendChild(hint);
+}
+async function act(payload, what){
+  if (busy) return;
+  busy = true; setStatus(what + " 중…");
+  try{
+    const j = await api(payload);
+    if (!j.ok) throw new Error(j.error || "실패");
+    members = j.members || [];
+    everyone = j.responses || everyone;
+    if (payload.action === "member_rename" && me === payload.from) me = payload.to;
+    if (payload.action === "member_remove" && me === payload.name){ me = null; $("#dateSection").hidden = true; $("#save").disabled = true; }
+    renderNames(); renderManage(); renderBoard();
+    setStatus(what + " 완료 ✓");
+  }catch(e){ setStatus(what + " 실패 — 다시 시도해주세요"); }
+  busy = false;
+}
+
+/* ---------- 날짜 ---------- */
+function renderRows(){
+  const box = $("#rows"); box.innerHTML = "";
+  DATES.forEach(d => {
+    const key = iso(d), a = answers[key];
+    const row = document.createElement("div");
+    row.className = "row" + (a && a.v === "part" ? " open" : "") + (a && a.v === "no" ? " dim" : "");
+
+    const top = document.createElement("div"); top.className = "rowTop";
+    const dt = document.createElement("div"); dt.className = "date";
+    dt.innerHTML = `<b>${short(d)}</b><span>일요일</span>`;
+    top.appendChild(dt);
+
+    const pick = document.createElement("div"); pick.className = "pick";
+    [["ok","○"],["part","시간"],["no","✕"]].forEach(([v,txt]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.v = v; b.textContent = txt;
+      b.setAttribute("aria-pressed", String(!!a && a.v === v));
+      b.onclick = () => {
+        if (a && a.v === v && v !== "part") delete answers[key];
+        else answers[key] = {v, slots:(a && a.slots) || []};
+        renderRows(); renderBoard();
+      };
+      pick.appendChild(b);
+    });
+    top.appendChild(pick); row.appendChild(top);
+
+    const slots = document.createElement("div"); slots.className = "slots";
+    for (let h = CONFIG.slotStart; h < CONFIG.slotEnd; h++){
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "slot"; b.textContent = pad(h) + "시";
+      b.setAttribute("aria-pressed", String(!!a && (a.slots||[]).includes(h)));
+      b.onclick = () => {
+        const cur = answers[key] || {v:"part", slots:[]};
+        const set = new Set(cur.slots || []);
+        set.has(h) ? set.delete(h) : set.add(h);
+        answers[key] = {v:"part", slots:[...set]};
+        renderRows(); renderBoard();
+      };
+      slots.appendChild(b);
+    }
+    row.appendChild(slots); box.appendChild(row);
+  });
+}
+
+/* ---------- 현황판 ---------- */
+function renderBoard(){
+  const box = $("#board");
+  if (!members.length){ box.innerHTML = '<p class="empty">아직 멤버가 없습니다.</p>'; return; }
+
+  const get = (n, key) => (n === me) ? cellValue(answers[key]) : ((everyone[n] || {})[key] || "");
+
+  let h = "<table><thead><tr><th>이름</th>";
+  DATES.forEach(d => h += `<th>${short(d)}</th>`);
+  h += "</tr></thead><tbody>";
+  members.forEach(n => {
+    h += `<tr><td>${n}</td>`;
+    DATES.forEach(d => {
+      const v = get(n, iso(d));
+      const cls = v === "O" ? "y" : v === "X" ? "n" : v ? "p" : "";
+      h += `<td class="${cls}">${v || "·"}</td>`;
+    });
+    h += "</tr>";
+  });
+  // 전원 가능 여부 요약
+  h += `<tr class="all"><td>전원</td>`;
+  DATES.forEach(d => {
+    const key = iso(d);
+    const vals = members.map(n => get(n, key));
+    const done = vals.filter(v => v).length;
+    const okAll = done === members.length && vals.every(v => v === "O");
+    const anyNo = vals.some(v => v === "X");
+    h += `<td class="${okAll ? "y" : anyNo ? "n" : "p"}">${okAll ? "○" : anyNo ? "✕" : done + "/" + members.length}</td>`;
+  });
+  h += "</tr></tbody></table>";
+  box.innerHTML = h;
+}
+
+/* ---------- 시작 ---------- */
+$("#save").onclick = async () => {
+  if (!me || busy) return;
+  busy = true; $("#save").disabled = true; setStatus("저장 중…");
+  const payload = { action:"save", name: me, answers: {} };
+  DATES.forEach(d => { payload.answers[iso(d)] = cellValue(answers[iso(d)]); });
+  try{
+    const j = await api(payload);
+    if (!j.ok) throw new Error(j.error || "실패");
+    everyone[me] = payload.answers;
+    setStatus("저장했습니다 ✓");
+    renderNames(); renderBoard();
+  }catch(e){ setStatus("저장 실패 — 다시 눌러주세요"); }
+  busy = false; $("#save").disabled = false;
+};
+
+async function load(){
+  if (!ready()){ setStatus("설정 전입니다 (endpoint 미지정)"); renderNames(); renderBoard(); return; }
+  try{
+    const r = await fetch(CONFIG.endpoint + "?action=load", {redirect:"follow"});
+    const j = await r.json();
+    members  = j.members || [];
+    everyone = j.responses || {};
+    setStatus("이름을 먼저 골라주세요");
+  }catch(e){
+    setStatus("불러오기 실패 — 새로고침 해보세요");
+  }
+  renderNames(); renderBoard();
+  const last = recall();
+  if (last && members.includes(last)) pickName(last);
+}
+load();
+</script>
+</body>
+</html>
