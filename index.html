@@ -385,6 +385,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       <div id="voterBox" hidden style="margin-top:12px">
         <p class="hint" style="margin:0 0 7px" id="voterHint">투표하려면 이름을 골라주세요.</p>
         <div class="chips" id="voterChips"></div>
+        <button class="btn ghost" id="resortBtn" type="button"
+                style="margin-top:8px;padding-left:0">↕ 좋아요 순으로 다시 정렬</button>
       </div>
     </div>
 
@@ -590,7 +592,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18o";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18p";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -755,6 +757,7 @@ async function load(fresh){
     if (!ST.bands.length) { setStatus("밴드가 없습니다", "err"); return; }
     const want = localStorage.getItem("bm_band");
     B = ST.bands.some(b => b.id === want) ? want : ST.bands[0].id;
+    resortVotes();
     pickBand(B, true);
     snapSave();
     setStatus("최신 상태 · " + (lastMs / 1000).toFixed(1) + "초", "ok");
@@ -1255,7 +1258,7 @@ function renderSongs(){
     b.className = "chip"; b.type = "button";
     b.textContent = v.tab + (n ? " " + n : "");
     b.setAttribute("aria-pressed", String(v.key === songView));
-    b.onclick = () => { songView = v.key; renderSongs(); };
+    b.onclick = () => { songView = v.key; resortVotes(); renderSongs(); };
     seg.appendChild(b);
   });
 
@@ -1282,9 +1285,7 @@ function renderSongs(){
 
   const stats = songStats();
   let list = all.filter(s => spec.has.includes(s.status));
-  if (songView === "후보"){                       // 좋아요 많은 순
-    list = list.slice().sort((a,b) => voteTally(b.id).up.length - voteTally(a.id).up.length);
-  }
+  if (songView === "후보") list = orderVotes(list);   // 좋아요 순이되, 누를 때마다 튀지 않게
 
   const box = $("#songList"); box.innerHTML = "";
   $("#songSumCard").hidden = !list.length;
@@ -1300,6 +1301,25 @@ function renderSongs(){
     card.id = "song-" + s.id;
     box.appendChild(card);
   });
+}
+
+/* 후보곡은 '좋아요 많은 순'이지만, 투표할 때마다 카드가 위아래로 튀면 헷갈린다.
+   그래서 **보고 있는 동안에는 순서를 고정**한다.
+   다시 정렬되는 때: 세그먼트를 다시 누를 때 / 곡이 늘거나 줄 때 / 새로 불러올 때. */
+let voteOrder = null;
+function resortVotes(){ voteOrder = null; }
+
+function orderVotes(list){
+  const ids = list.map(s => s.id);
+  const same = voteOrder && voteOrder.length === ids.length && ids.every(id => voteOrder.indexOf(id) >= 0);
+  if (!same){
+    voteOrder = list.slice()
+      .sort((a, b) => voteTally(b.id).up.length - voteTally(a.id).up.length)
+      .map(s => s.id);
+  }
+  const at = {};
+  voteOrder.forEach((id, i) => { at[id] = i; });
+  return list.slice().sort((a, b) => (at[a.id] == null ? 9999 : at[a.id]) - (at[b.id] == null ? 9999 : at[b.id]));
 }
 
 /** 곡 목록 맨 위 요약표. 현재 세그먼트에 맞춰 열이 바뀐다.
@@ -1524,6 +1544,7 @@ function openSongForm(s){
 }
 function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; }
 
+$("#resortBtn").onclick  = () => { resortVotes(); renderSongs(); setStatus("좋아요 순으로 정렬했습니다", "ok"); };
 $("#songNew").onclick    = () => openSongForm(null);
 $("#songCancel").onclick = closeSongForm;
 $("#songSave").onclick   = async () => {
