@@ -581,7 +581,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18m";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18n";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1025,12 +1025,26 @@ async function save(){
     payload.hours[d] = hours().filter(h => sel.has(key(d,h)));
     payload.notes[d] = noteDraft[d] || "";
   });
+  /* 결과 탭이 서버를 기다리지 않게 내 응답을 먼저 반영한다 */
+  const backup = JSON.stringify({ h: ST.hours, n: ST.notes });
+  if (!ST.hours[B]) ST.hours[B] = {};
+  if (!ST.notes[B]) ST.notes[B] = {};
+  ST.hours[B][me] = payload.hours;
+  ST.notes[B][me] = {};
+  for (const d in payload.notes) if (payload.notes[d]) ST.notes[B][me][d] = payload.notes[d];
+  dirty = false;
+  renderMembers(); renderResult();
+  setStatus("저장 중… — " + me);
+
   try {
     ST = await api({ action:"save", band:B, name:me, payload: JSON.stringify(payload) });
-    dirty = false;
     setStatus("저장됨 ✓ — " + me, "ok");
     renderMembers(); renderResult();
   } catch(e){
+    const b = JSON.parse(backup);
+    ST.hours = b.h; ST.notes = b.n;
+    dirty = true;
+    renderMembers(); renderResult();
     setStatus("저장 실패 — " + e.message + " (저장 버튼을 다시 눌러주세요)", "err");
   } finally { saving = false; }
 }
@@ -1445,7 +1459,8 @@ function songCard(s, stat){
     b.className = "btn ghost";
     b.textContent = MOVE_LABEL[x] || ro(x);
     b.title = MOVE_HINT[x] || "";
-    b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:x }, s.title + " → " + x);
+    b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:x }, s.title + " → " + x,
+      () => { const t = songById(s.id); if (t) t.status = x; });
     acts.appendChild(b);
   });
   const ed = document.createElement("button");
@@ -1516,14 +1531,22 @@ $("#songSave").onclick   = async () => {
   closeSongForm();
   // 저장한 곡이 안 보이는 칸으로 사라지지 않게, 그 상태의 화면으로 옮겨준다
   songView = p.status === "후보" ? "후보" : (p.status === "연습중" ? "연습중" : "지난");
-  await act({ action:"song_save", band:B, payload: JSON.stringify(p) }, p.title + " 저장됨");
+  await act({ action:"song_save", band:B, payload: JSON.stringify(p) }, p.title + " 저장됨", () => {
+    const old = p.id ? songById(p.id) : null;
+    if (old) Object.assign(old, p);
+    else ST.songs.push(Object.assign({ band:B, added: iso(new Date()) }, p, { id: tmpId() }));
+  });
 };
 $("#songDelete").onclick = () => {
   if (!songEditing) return;
   if (!confirm(songEditing.title + " 을 지울까요? 투표와 이력 연결도 함께 지워집니다.")) return;
   const id = songEditing.id, t = songEditing.title;
   closeSongForm();
-  act({ action:"song_remove", band:B, id }, t + " 삭제됨");
+  act({ action:"song_remove", band:B, id }, t + " 삭제됨", () => {
+    ST.songs = ST.songs.filter(x => x.id !== id);
+    delete ST.votes[id];
+    ST.hist.forEach(h => { h.songs = h.songs.filter(x => x !== id); });
+  });
 };
 
 /* ═══════════════ 이력 ═══════════════ */
@@ -1683,14 +1706,19 @@ $("#histSave").onclick = async () => {
   };
   if (!p.date){ setStatus("날짜를 골라주세요", "err"); return; }
   closeHistForm();
-  await act({ action:"hist_save", band:B, payload: JSON.stringify(p) }, fmtFull(p.date) + " 회차 저장됨");
+  await act({ action:"hist_save", band:B, payload: JSON.stringify(p) }, fmtFull(p.date) + " 회차 저장됨", () => {
+    const old = p.id ? ST.hist.find(h => h.id === p.id) : null;
+    if (old) Object.assign(old, p);
+    else ST.hist.push(Object.assign({ band:B }, p, { id: tmpId() }));
+  });
 };
 $("#histDelete").onclick = () => {
   if (!histEditing) return;
   if (!confirm(fmtLong(histEditing.date) + " 회차를 지울까요?")) return;
   const id = histEditing.id;
   closeHistForm();
-  act({ action:"hist_remove", band:B, id }, "회차 삭제됨");
+  act({ action:"hist_remove", band:B, id }, "회차 삭제됨",
+      () => { ST.hist = ST.hist.filter(h => h.id !== id); });
 };
 
 /* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
@@ -1725,7 +1753,7 @@ function toggleDate(d){ dsel.has(d) ? dsel.delete(d) : dsel.add(d); renderCal();
 async function saveDates(){
   clearTimeout(dateTimer);
   const want = Array.from(dsel).sort();
-  setStatus("저장 중…");
+  setStatus("날짜 후보 " + want.length + "일 · 저장 중…");     // 화면엔 이미 반영돼 있다
   try {
     ST = await api({ action:"config_set", band:B, dates: want.join(",") });
     dateDirty = false;
@@ -1870,14 +1898,27 @@ function renderAdmin(){
     r.className = "btn ghost"; r.textContent = "이름변경";
     r.onclick = async () => {
       const to = prompt("새 이름", n); if (!to || to === n) return;
-      await act({ action:"member_rename", band:B, from:n, to }, "이름 변경됨");
+      await act({ action:"member_rename", band:B, from:n, to }, "이름 변경됨", () => {
+        ST.members[B] = members().map(x => x === n ? to : x);
+        [ST.hours, ST.notes].forEach(m => {
+          const g = m[B]; if (g && g[n] !== undefined){ g[to] = g[n]; delete g[n]; }
+        });
+        Object.keys(ST.votes).forEach(id => {
+          const v = ST.votes[id];
+          if (v && v[n] !== undefined){ v[to] = v[n]; delete v[n]; }
+        });
+      });
       if (me === n){ me = to; localStorage.setItem("bm_name:" + B, me); renderAll(); }
     };
     const x = document.createElement("button");
     x.className = "btn ghost danger"; x.textContent = "삭제";
     x.onclick = () => {
       if (!confirm(n + " 님을 삭제할까요? 응답·투표도 함께 지워집니다.")) return;
-      act({ action:"member_remove", band:B, name:n }, "삭제됨");
+      act({ action:"member_remove", band:B, name:n }, "삭제됨", () => {
+        ST.members[B] = members().filter(x => x !== n);
+        [ST.hours, ST.notes].forEach(m => { if (m[B]) delete m[B][n]; });
+        Object.keys(ST.votes).forEach(id => { if (ST.votes[id]) delete ST.votes[id][n]; });
+      });
     };
     li.append(s, r, x); ml.appendChild(li);
   });
@@ -1897,7 +1938,9 @@ function renderAdmin(){
     r.className = "btn ghost"; r.textContent = "이름변경";
     r.onclick = () => {
       const to = prompt("새 밴드 이름", b.name); if (!to || to === b.name) return;
-      act({ action:"band_rename", band:b.id, name:to }, "밴드 이름 변경됨");
+      act({ action:"band_rename", band:b.id, name:to }, "밴드 이름 변경됨", () => {
+        const t = ST.bands.find(x => x.id === b.id); if (t) t.name = to;
+      });
     };
     const x = document.createElement("button");
     x.className = "btn ghost danger"; x.textContent = "삭제";
@@ -1917,13 +1960,31 @@ function absorb(){
   applyConfig(); loadMine(); renderAll();
 }
 
-async function act(params, okMsg){
-  setStatus("처리 중…");
+/** 쓰기 동작 공통.
+ *  `applyLocal` 을 주면 **화면을 먼저 바꾸고** 저장은 뒤에서 한다(낙관적 반영).
+ *  서버 왕복이 2~3초라 기다렸다 그리면 버튼이 먹통처럼 느껴진다.
+ *  실패하면 눌렀던 걸 통째로 되돌린다. */
+/** 새로 만든 것에 잠깐 붙여두는 id. 서버 응답이 오면 진짜 id 로 바뀐다. */
+let tmpSeq = 0;
+function tmpId(){ return "tmp" + (++tmpSeq); }
+
+async function act(params, okMsg, applyLocal){
+  let backup = null;
+  if (applyLocal){
+    backup = JSON.stringify(ST);
+    try { applyLocal(); } catch(err){ backup = null; }
+    if (backup){
+      absorb();                                    // 0초. 여기서 이미 반영된 것처럼 보인다
+      setStatus((okMsg || "완료") + " · 저장 중…");
+    }
+  }
+  if (!backup) setStatus("처리 중…");
   try {
     ST = await api(params);
     absorb();
     setStatus(okMsg || "완료", "ok");
   } catch(e){
+    if (backup){ ST = JSON.parse(backup); absorb(); }
     if (/PIN/.test(e.message)){                    // PIN 이 바뀌었다 → 다시 물어본다
       pinSet(B, "");
       try { ST = await api({ action:"load" }); absorb(); } catch(e3){}
@@ -1946,7 +2007,9 @@ $("#memberAdd").onclick = () => {
   const v = $("#memberInput").value.trim();
   if (!v) return;
   $("#memberInput").value = "";
-  act({ action:"member_add", band:B, name:v }, v + " 추가됨");
+  act({ action:"member_add", band:B, name:v }, v + " 추가됨", () => {
+    ST.members[B] = members().concat([v]);
+  });
 };
 $("#memberInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#memberAdd").click(); });
 $("#bandAdd").onclick = () => {
@@ -1956,10 +2019,22 @@ $("#bandAdd").onclick = () => {
   act({ action:"band_add", name:v }, v + " 밴드 추가됨");
 };
 $("#bandInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#bandAdd").click(); });
-$("#hourSave").onclick = () => act({
-  action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value
-}, "시간 범위 저장됨");
-$("#titleSave").onclick = () => act({ action:"config_set", band:B, title: $("#titleInput").value }, "제목 저장됨");
+$("#hourSave").onclick = () => {
+  const a = parseInt($("#hStart").value, 10), b = parseInt($("#hEnd").value, 10);
+  act({ action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value },
+      "시간 범위 저장됨", () => {
+    if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
+    if (Number.isFinite(a)) ST.config[B].hourStart = a;
+    if (Number.isFinite(b)) ST.config[B].hourEnd   = b;
+  });
+};
+$("#titleSave").onclick = () => {
+  const v = $("#titleInput").value;
+  act({ action:"config_set", band:B, title: v }, "제목 저장됨", () => {
+    if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
+    ST.config[B].title = v;
+  });
+};
 /* ═══════════════ PIN ═══════════════ */
 async function unlock(){
   const v = $("#lockPin").value.trim();
@@ -2010,7 +2085,9 @@ $("#copyLink").onclick = async () => {
 };
 $("#resetBtn").onclick = () => {
   if (!confirm("이 밴드의 모든 응답과 메모를 지웁니다. 계속할까요?")) return;
-  act({ action:"reset_answers", band:B }, "초기화됨");
+  act({ action:"reset_answers", band:B }, "초기화됨", () => {
+    ST.hours[B] = {}; ST.notes[B] = {}; sel = new Set(); noteDraft = {};
+  });
 };
 $("#calClear").onclick = () => {
   if (!dsel.size) return;
