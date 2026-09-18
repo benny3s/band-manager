@@ -592,7 +592,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18p";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18q";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1504,23 +1504,53 @@ function songCard(s, stat){
 /** 투표는 **누르는 즉시** 화면에 반영하고, 저장은 뒤에서 한다.
  *  서버 왕복이 2~3초라 기다렸다 그리면 버튼이 먹통처럼 느껴진다.
  *  실패하면 눌렀던 걸 되돌리고 알려준다. */
-async function vote(id, val){
+/* 투표는 연타가 잦다. 누를 때마다 보내면 요청이 줄줄이 밀려 화면이 출렁인다.
+   그래서 **화면은 즉시 바꾸고, 전송은 0.5초 모았다가 마지막 값 한 번만** 보낸다. */
+const voteWant = {};     // 곡id -> 1 / -1 / null (아직 서버 확인 전인 내 의사)
+const voteBase = {};     // 곡id -> 처음 누르기 직전의 값 (실패하면 되돌릴 것)
+const voteTimer = {};
+const votePend = {};     // 곡id -> pending 등록 번호
+
+function applyVote(id){
+  const v = Object.assign({}, ST.votes[id] || {});
+  const want = voteWant[id];
+  if (want === null || want === undefined) delete v[me]; else v[me] = want;
+  ST.votes[id] = v;
+}
+
+function vote(id, val){
   if (!me){ setStatus("먼저 이름을 골라주세요", "err"); return; }
 
-  const before = ST.votes[id] ? Object.assign({}, ST.votes[id]) : null;
-  const now = Object.assign({}, ST.votes[id] || {});
-  if (val === null) delete now[me]; else now[me] = val;
-  ST.votes[id] = now;
+  if (!votePend[id]){
+    voteBase[id] = ST.votes[id] ? Object.assign({}, ST.votes[id]) : null;
+    votePend[id] = pendAdd(() => applyVote(id));
+  }
+  voteWant[id] = val;
+  applyVote(id);
   renderSongs();                       // 0초. 여기서 이미 눌린 것처럼 보인다
-  setStatus("투표 저장 중…");
+  setStatus(val === null ? "투표 취소 중…" : "투표 저장 중…");
 
+  clearTimeout(voteTimer[id]);
+  voteTimer[id] = setTimeout(() => sendVote(id), 500);
+}
+
+async function sendVote(id){
+  const want = voteWant[id];
   try {
-    ST = await api({ action:"vote_set", band:B, id, name:me, value: val === null ? "" : String(val) });
-    renderSongs();
+    ST = await api({ action:"vote_set", band:B, id, name:me,
+                     value: want === null || want === undefined ? "" : String(want) });
+    if (voteWant[id] === want){        // 기다리는 동안 또 눌렀으면 아직 끝난 게 아니다
+      pendDone(votePend[id]);
+      delete votePend[id]; delete voteWant[id]; delete voteBase[id];
+    }
+    pendReplay(); renderSongs();
     setStatus("투표 반영됨 ✓", "ok");
   } catch(e){
-    if (before) ST.votes[id] = before; else delete ST.votes[id];
-    renderSongs();
+    const base = voteBase[id];
+    pendDone(votePend[id]);
+    delete votePend[id]; delete voteWant[id]; delete voteBase[id];
+    if (base) ST.votes[id] = base; else delete ST.votes[id];
+    pendReplay(); renderSongs();
     setStatus("투표 실패 — " + e.message, "err");
   }
 }
@@ -1561,10 +1591,11 @@ $("#songSave").onclick   = async () => {
   closeSongForm();
   // 저장한 곡이 안 보이는 칸으로 사라지지 않게, 그 상태의 화면으로 옮겨준다
   songView = p.status === "후보" ? "후보" : (p.status === "연습중" ? "연습중" : "지난");
+  const newSongId = p.id || tmpId();        // 여러 번 덧씌워도 하나만 생기게 id 를 고정
   await act({ action:"song_save", band:B, payload: JSON.stringify(p) }, p.title + " 저장됨", () => {
-    const old = p.id ? songById(p.id) : null;
-    if (old) Object.assign(old, p);
-    else ST.songs.push(Object.assign({ band:B, added: iso(new Date()) }, p, { id: tmpId() }));
+    const old = songById(newSongId);
+    if (old) Object.assign(old, p, { id: newSongId });
+    else ST.songs.push(Object.assign({ band:B, added: iso(new Date()) }, p, { id: newSongId }));
   });
 };
 $("#songDelete").onclick = () => {
@@ -1736,10 +1767,11 @@ $("#histSave").onclick = async () => {
   };
   if (!p.date){ setStatus("날짜를 골라주세요", "err"); return; }
   closeHistForm();
+  const newHistId = p.id || tmpId();        // 여러 번 덧씌워도 하나만 생기게 id 를 고정
   await act({ action:"hist_save", band:B, payload: JSON.stringify(p) }, fmtFull(p.date) + " 회차 저장됨", () => {
-    const old = p.id ? ST.hist.find(h => h.id === p.id) : null;
-    if (old) Object.assign(old, p);
-    else ST.hist.push(Object.assign({ band:B }, p, { id: tmpId() }));
+    const old = ST.hist.find(h => h.id === newHistId);
+    if (old) Object.assign(old, p, { id: newHistId });
+    else ST.hist.push(Object.assign({ band:B }, p, { id: newHistId }));
   });
 };
 $("#histDelete").onclick = () => {
@@ -1929,6 +1961,7 @@ function renderAdmin(){
     r.onclick = async () => {
       const to = prompt("새 이름", n); if (!to || to === n) return;
       await act({ action:"member_rename", band:B, from:n, to }, "이름 변경됨", () => {
+        if (!members().includes(n)) return;                   // 이미 바뀌었으면 그대로 둔다
         ST.members[B] = members().map(x => x === n ? to : x);
         [ST.hours, ST.notes].forEach(m => {
           const g = m[B]; if (g && g[n] !== undefined){ g[to] = g[n]; delete g[n]; }
@@ -1998,12 +2031,24 @@ function absorb(){
 let tmpSeq = 0;
 function tmpId(){ return "tmp" + (++tmpSeq); }
 
+/* ⚠️ 서버 응답은 **그 요청을 보낼 때의 상태**를 담고 온다.
+   그래서 응답으로 ST 를 통째로 갈아끼우면, 그 사이에 내가 누른 것들이 사라졌다가
+   다음 응답에서 다시 나타난다 — 빠르게 여러 번 누를 때 '튕기는' 느낌의 정체.
+   아직 확인 못 받은 내 변경을 모아뒀다가, ST 를 갈아끼울 때마다 다시 덧씌운다.
+   ⚠️ 그래서 applyLocal 은 **여러 번 실행해도 결과가 같아야(멱등)** 한다. */
+let pendSeq = 0;
+const pending = new Map();
+function pendAdd(fn){ const id = ++pendSeq; pending.set(id, fn); return id; }
+function pendDone(id){ if (id) pending.delete(id); }
+function pendReplay(){ pending.forEach(fn => { try { fn(); } catch(e){} }); }
+
 async function act(params, okMsg, applyLocal){
-  let backup = null;
+  let backup = null, pend = 0;
   if (applyLocal){
     backup = JSON.stringify(ST);
     try { applyLocal(); } catch(err){ backup = null; }
     if (backup){
+      pend = pendAdd(applyLocal);                  // 응답이 올 때까지 계속 덧씌운다
       absorb();                                    // 0초. 여기서 이미 반영된 것처럼 보인다
       setStatus((okMsg || "완료") + " · 저장 중…");
     }
@@ -2011,10 +2056,12 @@ async function act(params, okMsg, applyLocal){
   if (!backup) setStatus("처리 중…");
   try {
     ST = await api(params);
+    pendDone(pend); pendReplay();                  // 내 다른 대기 변경은 살려둔다
     absorb();
     setStatus(okMsg || "완료", "ok");
   } catch(e){
-    if (backup){ ST = JSON.parse(backup); absorb(); }
+    pendDone(pend);
+    if (backup){ ST = JSON.parse(backup); pendReplay(); absorb(); }
     if (/PIN/.test(e.message)){                    // PIN 이 바뀌었다 → 다시 물어본다
       pinSet(B, "");
       try { ST = await api({ action:"load" }); absorb(); } catch(e3){}
@@ -2038,7 +2085,7 @@ $("#memberAdd").onclick = () => {
   if (!v) return;
   $("#memberInput").value = "";
   act({ action:"member_add", band:B, name:v }, v + " 추가됨", () => {
-    ST.members[B] = members().concat([v]);
+    if (!members().includes(v)) ST.members[B] = members().concat([v]);
   });
 };
 $("#memberInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#memberAdd").click(); });
