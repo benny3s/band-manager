@@ -581,7 +581,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18j";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18k";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -719,13 +719,13 @@ let lastMs = 0;                       // 마지막 서버 왕복 시간 (화면 
 
 /** 오래 걸릴 때 몇 초째인지 보여준다. 가만히 도는 것보다 덜 답답하고,
  *  구글 쪽이 깨어나는 중인지(=10초 넘음) 바로 알 수 있다. */
-function waitTicker(base){
+function waitTicker(base, spin){
   const t0 = Date.now();
   const id = setInterval(() => {
     const s = Math.round((Date.now() - t0) / 1000);
-    if (s < 3) return;
-    setStatus(base + " " + s + "초" + (s >= 10 ? " · 구글 서버가 깨어나는 중입니다" : ""));
-    if (s >= 10) $("#refreshBtn").classList.remove("spin");   // 멈춘 것처럼 보이지 않게
+    if (s < 5) return;
+    setStatus(base + " " + s + "초" + (s >= 12 ? " · 구글 서버가 깨어나는 중입니다" : ""));
+    if (spin && s >= 12) $("#refreshBtn").classList.remove("spin");   // 멈춘 것처럼 보이지 않게
   }, 1000);
   return () => clearInterval(id);
 }
@@ -734,8 +734,11 @@ async function load(fresh){
   const had = !!ST.bands.length;      // 저장해 둔 화면이 이미 떠 있나
   const base = fresh ? "시트에서 다시 읽는 중…" : (had ? "최신 확인 중…" : "불러오는 중…");
   setStatus(base);
-  $("#refreshBtn").classList.add("spin");
-  const stop = waitTicker(base);
+  /* 저장해 둔 화면이 이미 떠 있으면 뒷정리일 뿐이다. ↻ 를 돌리면
+     뭔가 멈춰 있는 것처럼 보이므로, 직접 누른 새로고침일 때만 돌린다 */
+  const spin = fresh || !had;
+  if (spin) $("#refreshBtn").classList.add("spin");
+  const stop = waitTicker(base, spin);
   const t0 = Date.now();
   try {
     ST = await api(fresh ? { action:"load", fresh:1 } : { action:"load" });
