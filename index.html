@@ -282,15 +282,18 @@ a.lnk::before{content:"▶";font-size:9px}
   <!-- ══════════ 곡 ══════════ -->
   <section id="view-song" hidden>
     <div class="card">
-      <div class="spread">
+      <div class="chips" id="songSeg"></div>
+      <div class="spread" style="margin-top:14px">
         <div style="min-width:0">
-          <h2>합주곡</h2>
+          <h2 id="songHead">지금 하는 곡</h2>
           <p class="hint" style="margin-bottom:0" id="songSummary"></p>
         </div>
         <button class="btn primary sm" id="songNew" style="flex:0 0 auto">곡 추가</button>
       </div>
-      <div class="chips" id="voterChips" style="margin-top:12px"></div>
-      <p class="hint" id="voterHint" style="margin:8px 0 0">후보곡에 투표하려면 이름을 골라주세요.</p>
+      <div id="voterBox" hidden style="margin-top:12px">
+        <p class="hint" style="margin:0 0 7px" id="voterHint">투표하려면 이름을 골라주세요.</p>
+        <div class="chips" id="voterChips"></div>
+      </div>
     </div>
 
     <div class="card" id="songForm" hidden>
@@ -889,7 +892,6 @@ function renderResult(){
 }
 
 /* ═══════════════ 곡 ═══════════════ */
-const STATUS_ORDER = ["연습중", "후보", "완료", "보류"];
 const NEXT_STATUS = {
   "후보":   ["연습중", "보류"],
   "연습중": ["완료", "보류"],
@@ -926,42 +928,64 @@ function voteTally(id){
   return { up, down, mine: v[me] };
 }
 
+/* 곡 화면은 세 갈래로 나뉜다. 지금 하는 곡과 후보곡 투표를 한 목록에 섞지 않는다. */
+const SONG_VIEWS = [
+  { key:"연습중", tab:"지금 하는 곡", head:"지금 하는 곡", has:["연습중"],
+    hint:"합주에서 실제로 맞춰보고 있는 곡", empty:"아직 없습니다. 후보곡에서 올리거나 곡을 추가하세요." },
+  { key:"후보",   tab:"후보곡 투표",  head:"후보곡 투표", has:["후보"],
+    hint:"다음에 뭘 할지 고르는 중. 좋아요 많은 순", empty:"후보곡이 없습니다. 곡 추가를 눌러 올려보세요." },
+  { key:"지난",   tab:"지난 곡",      head:"지난 곡",     has:["완료","보류"],
+    hint:"끝냈거나 잠시 접어둔 곡", empty:"아직 없습니다." }
+];
+let songView = "연습중";
+
+function songViewSpec(){ return SONG_VIEWS.find(v => v.key === songView) || SONG_VIEWS[0]; }
+
 function renderSongs(){
   const all = songsOf();
-  $("#songSummary").textContent = all.length
-    ? STATUS_ORDER.map(s => { const n = all.filter(x => x.status === s).length; return n ? s + " " + n : null; })
-      .filter(Boolean).join(" · ")
-    : "아직 곡이 없습니다";
+  const spec = songViewSpec();
 
-  const vc = $("#voterChips"); vc.innerHTML = "";
-  members().forEach(n => {
+  const seg = $("#songSeg"); seg.innerHTML = "";
+  SONG_VIEWS.forEach(v => {
+    const n = all.filter(s => v.has.includes(s.status)).length;
     const b = document.createElement("button");
-    b.className = "chip sm"; b.type = "button"; b.textContent = n;
-    b.setAttribute("aria-pressed", String(n === me));
-    b.onclick = () => {
-      me = n; localStorage.setItem("bm_name:" + B, me);
-      renderMembers(); renderSongs();
-    };
-    vc.appendChild(b);
+    b.className = "chip"; b.type = "button";
+    b.textContent = v.tab + (n ? " " + n : "");
+    b.setAttribute("aria-pressed", String(v.key === songView));
+    b.onclick = () => { songView = v.key; renderSongs(); };
+    seg.appendChild(b);
   });
-  $("#voterHint").textContent = me ? (me + " 님으로 투표 중") : "후보곡에 투표하려면 이름을 골라주세요.";
+
+  $("#songHead").textContent = spec.head;
+  $("#songSummary").textContent = spec.hint;
+
+  // 이름 고르기는 투표할 때만 필요하다
+  $("#voterBox").hidden = (songView !== "후보");
+  if (songView === "후보"){
+    const vc = $("#voterChips"); vc.innerHTML = "";
+    members().forEach(n => {
+      const b = document.createElement("button");
+      b.className = "chip sm"; b.type = "button"; b.textContent = n;
+      b.setAttribute("aria-pressed", String(n === me));
+      b.onclick = () => {
+        me = n; localStorage.setItem("bm_name:" + B, me);
+        renderMembers(); renderSongs();
+      };
+      vc.appendChild(b);
+    });
+    $("#voterHint").textContent = me ? (me + " 님으로 투표 중 — 다시 누르면 취소")
+                                     : "투표하려면 이름을 골라주세요.";
+  }
 
   const stats = songStats();
-  const box = $("#songList"); box.innerHTML = "";
-  if (!all.length){ box.innerHTML = '<div class="empty">곡 추가를 눌러 시작하세요.</div>'; return; }
+  let list = all.filter(s => spec.has.includes(s.status));
+  if (songView === "후보"){                       // 좋아요 많은 순
+    list = list.slice().sort((a,b) => voteTally(b.id).up.length - voteTally(a.id).up.length);
+  }
 
-  STATUS_ORDER.forEach(st => {
-    const list = all.filter(s => s.status === st);
-    if (!list.length) return;
-    const sec = document.createElement("div"); sec.className = "sec";
-    const hd = document.createElement("div"); hd.className = "sechead";
-    hd.innerHTML = '<h3></h3><span class="n"></span>';
-    hd.querySelector("h3").textContent = st;
-    hd.querySelector(".n").textContent = list.length + "곡";
-    sec.appendChild(hd);
-    list.forEach(s => sec.appendChild(songCard(s, stats[s.id])));
-    box.appendChild(sec);
-  });
+  const box = $("#songList"); box.innerHTML = "";
+  if (!list.length){ box.innerHTML = '<div class="empty">' + spec.empty + '</div>'; return; }
+  list.forEach(s => box.appendChild(songCard(s, stats[s.id])));
 }
 
 function songCard(s, stat){
@@ -983,6 +1007,7 @@ function songCard(s, stat){
     const p = document.createElement("span"); p.className = "pill " + (cls || "grey");
     p.textContent = txt; badges.appendChild(p);
   };
+  if (songView === "지난") addPill(s.status, s.status === "보류" ? "amber" : "");
   addPill(s.key, "");
   addPill(s.tuning, "amber");
   if (stat) addPill("합주 " + stat.n + "회 · " + fmtD(stat.first) + " 첫 합주", "grey");
@@ -1070,7 +1095,7 @@ function openSongForm(s){
   $("#f_artist").value = s ? s.artist : "";
   $("#f_key").value    = s ? s.key    : "";
   $("#f_picker").value = s ? s.picker : (me || "");
-  $("#f_status").value = s ? s.status : "후보";
+  $("#f_status").value = s ? s.status : (songView === "후보" ? "후보" : "연습중");
   $("#f_links").value  = s ? s.links  : "";
   $("#f_parts").value  = s ? s.parts  : "";
   $("#f_tuning").value = s ? s.tuning : "";
@@ -1095,6 +1120,8 @@ $("#songSave").onclick   = async () => {
   };
   if (!p.title){ setStatus("곡 제목을 적어주세요", "err"); return; }
   closeSongForm();
+  // 저장한 곡이 안 보이는 칸으로 사라지지 않게, 그 상태의 화면으로 옮겨준다
+  songView = p.status === "후보" ? "후보" : (p.status === "연습중" ? "연습중" : "지난");
   await act({ action:"song_save", band:B, payload: JSON.stringify(p) }, p.title + " 저장됨");
 };
 $("#songDelete").onclick = () => {
