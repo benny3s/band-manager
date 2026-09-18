@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>밴드매니저</title>
 <meta name="description" content="합주 일정 취합 · 합주곡 · 진행 이력">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <style>
 :root{
   --bg:#f7f7f5; --card:#fff; --line:#e4e4e0; --ink:#1b1b19; --muted:#6e6e67;
@@ -532,6 +533,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
+const BUILD = "2026-09-18d";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -548,7 +550,18 @@ function pinMap(){
   return m;
 }
 
-function api(params){
+/** 같은 요청을 한 번 더 보내도 괜찮은 것들 — 끊기면 자동으로 한 번 재시도한다 */
+async function api(params){
+  const safe = !params.action || params.action === "load";
+  try { return await once(params); }
+  catch(e){
+    if (!safe || !/네트워크|응답이 없습니다/.test(e.message)) throw e;
+    await new Promise(r => setTimeout(r, 700));
+    return once(params);
+  }
+}
+
+function once(params){
   return new Promise((resolve, reject) => {
     const cb = "__jp" + Math.random().toString(36).slice(2);
     const s  = document.createElement("script");
@@ -682,7 +695,7 @@ function renderAll(){
     document.title = t + " — 밴드매니저";
     $("#subtitle").textContent = "PIN을 넣으면 열립니다";
     $("#lockTitle").textContent = t;
-    $("#foot").textContent = "밴드매니저 · benny3s.github.io";
+    $("#foot").textContent = "밴드매니저 " + BUILD;
     return;
   }
 
@@ -696,7 +709,7 @@ function renderAll(){
   const n = cfg().dates.length;
   $("#subtitle").textContent = n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
                                  : "날짜 후보가 아직 없습니다";
-  $("#foot").textContent = "밴드매니저 · benny3s.github.io";
+  $("#foot").textContent = "밴드매니저 " + BUILD;
   show(view);
 }
 
