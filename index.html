@@ -153,7 +153,7 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
   <div class="tabs" role="tablist">
     <button role="tab" id="tab-answer" aria-selected="true">응답하기</button>
     <button role="tab" id="tab-result" aria-selected="false">결과</button>
-    <button role="tab" id="tab-admin" aria-selected="false" hidden>관리</button>
+    <button role="tab" id="tab-admin" aria-selected="false">관리</button>
   </div>
 
   <!-- ══════════ 응답 ══════════ -->
@@ -779,17 +779,11 @@ $("#tab-answer").onclick = () => show("answer");
 $("#tab-result").onclick = () => { renderResult(); show("result"); };
 $("#tab-admin").onclick  = () => { renderAdmin(); show("admin"); };
 
-function checkAdmin(){
-  const on = location.hash.toLowerCase() === "#admin";
-  $("#tab-admin").hidden = !on;
-  if (!on && !$("#view-admin").hidden) show("answer");
-}
-window.addEventListener("hashchange", checkAdmin);
-checkAdmin();
+// #admin 으로 들어오면 바로 관리 화면. (관리 탭은 누구에게나 보입니다)
+if (location.hash.toLowerCase() === "#admin") show("admin");
 
 window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
 
-if (me) { /* 이름 기억 */ }
 load().then(() => { if (me){ loadMine(); renderMembers(); renderGrid(); renderNotes(); setStatus(me + " 님으로 응답 중", "ok"); } });
 </script>
 </body>
