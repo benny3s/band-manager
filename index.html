@@ -93,12 +93,13 @@ section[hidden]{display:none}
 .calhead .ym{font-weight:700;font-size:15.5px;letter-spacing:-.02em}
 .calhead .nav{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
   font:inherit;font-size:17px;line-height:1;width:36px;height:36px;border-radius:9px;cursor:pointer}
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
+  user-select:none;-webkit-user-select:none;touch-action:none}
 .cal .dowh{text-align:center;font-size:11.5px;color:var(--muted);padding:2px 0 4px}
 .cal .dowh.sun{color:var(--warn)}
 .cal .d{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
   font:inherit;font-size:13.5px;border-radius:9px;padding:10px 0;cursor:pointer;
-  font-variant-numeric:tabular-nums;text-align:center}
+  font-variant-numeric:tabular-nums;text-align:center;touch-action:none}
 .cal .d.blank{border:0;background:transparent;cursor:default}
 .cal .d.past{color:var(--muted);opacity:.3;cursor:default}
 .cal .d.today{border-color:var(--ink);border-width:2px}
@@ -110,6 +111,16 @@ section[hidden]{display:none}
 .datechip{display:inline-flex;align-items:center;gap:6px}
 .datechip b{font-weight:600}
 .datechip .x{opacity:.65;font-size:15px;line-height:1}
+
+details.rng{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+details.rng>summary{list-style:none;cursor:pointer;padding:11px 14px;font-size:13.5px;
+  font-weight:600;color:var(--muted);display:flex;align-items:center;gap:7px}
+details.rng>summary::-webkit-details-marker{display:none}
+details.rng>summary::before{content:"＋";font-size:14px;color:var(--accent)}
+details.rng[open]>summary::before{content:"−"}
+details.rng[open]>summary{color:var(--ink);border-bottom:1px solid var(--line)}
+details.rng .body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:10px}
+details.rng .dash{color:var(--muted);flex:0 0 auto}
 
 /* ── 메모 ── */
 .notes{display:flex;flex-direction:column;gap:8px;margin-top:4px}
@@ -247,7 +258,8 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
   <section id="view-admin" hidden>
     <div class="card">
       <h2>날짜 후보</h2>
-      <p class="hint">달력에서 날짜를 눌러 켜고 끕니다. 켠 날짜만 멤버 화면에 보여요.</p>
+      <p class="hint">달력에서 날짜를 누르면 켜지고, <b>누른 채 쭉 끌면</b> 여러 날이 한 번에 켜져요.
+        켠 날짜만 멤버 화면에 보입니다.</p>
 
       <div class="calhead">
         <button class="nav" id="calPrev" aria-label="이전 달">‹</button>
@@ -261,6 +273,25 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
         <button class="btn" id="calDow6">토요일 전부</button>
         <button class="btn ghost" id="calToday">오늘 달로</button>
       </div>
+
+      <details class="rng">
+        <summary>기간으로 한 번에 (여러 달 걸쳐서)</summary>
+        <div class="body">
+          <div class="row tight">
+            <input type="date" id="rngFrom" style="flex:1 1 128px">
+            <span class="dash">~</span>
+            <input type="date" id="rngTo" style="flex:1 1 128px">
+          </div>
+          <div>
+            <p class="hint" style="margin:0 0 7px">요일을 고르면 그 요일만. 안 고르면 기간 내 모든 날.</p>
+            <div class="chips" id="rngDow"></div>
+          </div>
+          <div class="row tight">
+            <button class="btn primary" id="rngAdd">추가</button>
+            <button class="btn danger" id="rngDel">제외</button>
+          </div>
+        </div>
+      </details>
 
       <div class="spread" style="margin-top:14px">
         <span class="hint" style="margin:0" id="dateCount"></span>
@@ -715,13 +746,17 @@ let calY = null, calM = null; // 보고 있는 연·월
 
 function syncDsel(){ if (!dateDirty) dsel = new Set(ST.config.dates); }
 
-function toggleDate(d){
-  dsel.has(d) ? dsel.delete(d) : dsel.add(d);
+function dateChanged(){
   dateDirty = true;
-  renderCal(); renderDateChips();
+  renderDateChips();
   setStatus("날짜 변경됨 — 곧 저장됩니다");
   clearTimeout(dateTimer);
   dateTimer = setTimeout(saveDates, 900);
+}
+
+function toggleDate(d){
+  dsel.has(d) ? dsel.delete(d) : dsel.add(d);
+  renderCal(); dateChanged();
 }
 
 async function saveDates(){
@@ -765,11 +800,41 @@ function renderCal(){
     b.className = "d" + (past ? " past" : "") + (d === today ? " today" : "") +
                   (dsel.has(d) ? " on" : "");
     b.textContent = n;
-    if (!past) b.onclick = () => toggleDate(d);
-    else b.disabled = true;
+    b.dataset.d = d;
+    if (past) b.disabled = true;
     cal.appendChild(b);
   }
 }
+
+/* ── 달력 드래그 ── */
+(function(){
+  const cal = $("#cal");
+  let mode = null;
+  const at = (x,y) => {
+    const el = document.elementFromPoint(x,y);
+    const b = el && el.closest ? el.closest(".cal .d") : null;
+    return (b && b.dataset.d && !b.disabled) ? b : null;
+  };
+  const apply = b => {
+    if (!b) return;
+    const d = b.dataset.d;
+    if (mode === "on"){ if (!dsel.has(d)){ dsel.add(d); b.classList.add("on"); } }
+    else              { if (dsel.has(d)){ dsel.delete(d); b.classList.remove("on"); } }
+  };
+  cal.addEventListener("pointerdown", e => {
+    const b = at(e.clientX, e.clientY);
+    if (!b) return;
+    e.preventDefault();
+    try { cal.setPointerCapture(e.pointerId); } catch(err){}
+    mode = dsel.has(b.dataset.d) ? "off" : "on";
+    apply(b);
+  });
+  cal.addEventListener("pointermove", e => { if (mode) apply(at(e.clientX, e.clientY)); });
+  const end = () => { if (mode){ mode = null; dateChanged(); } };
+  cal.addEventListener("pointerup", end);
+  cal.addEventListener("pointercancel", end);
+  window.addEventListener("pointerup", end);
+})();
 
 function renderDateChips(){
   const list = Array.from(dsel).sort();
@@ -797,12 +862,54 @@ function toggleDow(dow){
   if (!hits.length){ setStatus("이 달에 남은 날이 없습니다", "err"); return; }
   const allOn = hits.every(d => dsel.has(d));
   hits.forEach(d => allOn ? dsel.delete(d) : dsel.add(d));
-  dateDirty = true;
-  renderCal(); renderDateChips();
-  setStatus("날짜 변경됨 — 곧 저장됩니다");
-  clearTimeout(dateTimer);
-  dateTimer = setTimeout(saveDates, 900);
+  renderCal(); dateChanged();
 }
+
+/* ── 기간으로 한 번에 ── */
+const rdow = new Set();
+function renderRngDow(){
+  const box = $("#rngDow"); box.innerHTML = "";
+  DOW.forEach((w, i) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.textContent = w;
+    b.setAttribute("aria-pressed", String(rdow.has(i)));
+    b.onclick = () => { rdow.has(i) ? rdow.delete(i) : rdow.add(i); renderRngDow(); };
+    box.appendChild(b);
+  });
+}
+renderRngDow();
+(function(){                                        // 기본 기간: 오늘 ~ 12주 뒤
+  const a = new Date(), b = new Date(); b.setDate(b.getDate() + 84);
+  $("#rngFrom").value = iso(a);
+  $("#rngTo").value   = iso(b);
+})();
+
+function rangeApply(add){
+  const a = $("#rngFrom").value, b = $("#rngTo").value;
+  if (!a || !b){ setStatus("시작일과 종료일을 골라주세요", "err"); return; }
+  if (a > b){ setStatus("종료일이 시작일보다 빠릅니다", "err"); return; }
+
+  const today = iso(new Date());
+  const from = dObj(a), to = dObj(b);
+  if ((to - from) / 86400000 > 400){ setStatus("기간이 너무 깁니다 (최대 400일)", "err"); return; }
+
+  let hit = 0;
+  for (let o = new Date(from); o <= to; o.setDate(o.getDate() + 1)){
+    const d = iso(o);
+    if (d < today) continue;                       // 지난 날짜는 건너뜀
+    if (rdow.size && !rdow.has(o.getDay())) continue;
+    if (add){ if (!dsel.has(d)){ dsel.add(d); hit++; } }
+    else    { if (dsel.has(d)) { dsel.delete(d); hit++; } }
+  }
+  if (!hit){ setStatus(add ? "추가할 날이 없습니다" : "제외할 날이 없습니다", "err"); return; }
+
+  const jump = dObj(a);                            // 작업한 기간의 첫 달을 보여줌
+  calY = jump.getFullYear(); calM = jump.getMonth();
+  renderCal(); dateChanged();
+  setStatus((add ? "추가 " : "제외 ") + hit + "일 — 곧 저장됩니다");
+}
+$("#rngAdd").onclick = () => rangeApply(true);
+$("#rngDel").onclick = () => rangeApply(false);
 
 $("#calPrev").onclick  = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
 $("#calNext").onclick  = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
