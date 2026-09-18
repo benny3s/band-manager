@@ -54,11 +54,24 @@ var _SS = null, _SHEETS = null, _TAB = {}, _ROWS = {};
  * ─ 읽기(load)는 캐시가 있으면 스프레드시트를 아예 열지 않습니다
  * ─ 쓰기는 시트에 쓰고 캐시도 같은 내용으로 갱신합니다
  * ─ 시트를 손으로 고쳤다면 `fresh=1` 로 캐시를 무시하고 다시 읽습니다 (페이지의 '새로고침') */
-var CACHE_TTL = 3600;        // 1시간
+var CACHE_TTL = 21600;       // 6시간 (ScriptCache 최대값)
 var _FRESH = false;
 function cache_() { return CacheService.getScriptCache(); }
 function ckey_(key) { return 'bm3_' + key; }
 function keysAll_() { var a = []; for (var k in TABS) a.push(ckey_(k)); return a; }
+
+/** 15분마다 깨워서 캐시를 미리 채워둔다.
+ *  이게 없으면 한동안 아무도 안 쓴 뒤 첫 사용자가 15초를 기다린다
+ *  (컨테이너 콜드 스타트 + 캐시 만료로 8개 탭을 전부 다시 읽기).
+ *  트리거: Apps Script 편집기 왼쪽 ⏰ 트리거 → 트리거 추가 →
+ *         함수 warm / 시간 기반 / 분 단위 타이머 / 15분마다 */
+function warm() {
+  _SS = null; _SHEETS = null; _TAB = {}; _ROWS = {};
+  _FRESH = true;                       // 시트에서 다시 읽어 캐시를 새로 채운다
+  for (var k in TABS) open_(k);
+  _FRESH = false;
+  return 'warm ok';
+}
 
 function ss_() {
   if (!_SS) _SS = SpreadsheetApp.openById(SHEET_ID);
