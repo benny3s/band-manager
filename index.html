@@ -581,7 +581,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18k";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18l";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1161,6 +1161,21 @@ const NEXT_STATUS = {
   "보류":   ["후보", "연습중"]
 };
 
+/* 버튼 글씨는 '상태 이름'이 아니라 **어느 화면으로 옮겨지는지**로 쓴다.
+   `연습중으로` 라고만 적혀 있으니 무슨 뜻인지 모르겠다는 피드백(2026-09-18). */
+const MOVE_LABEL = {
+  "연습중": "지금 하는 곡으로 올리기",
+  "완료":   "다 한 곡으로 내리기",
+  "보류":   "잠시 접어두기",
+  "후보":   "후보곡으로 되돌리기"
+};
+const MOVE_HINT = {
+  "연습중": "‘지금 하는 곡’ 화면으로 옮겨집니다",
+  "완료":   "‘지난 곡’ 화면으로 옮겨집니다",
+  "보류":   "‘지난 곡’ 화면에 보류로 남습니다",
+  "후보":   "‘후보곡 투표’ 화면으로 돌아갑니다"
+};
+
 function parseLinks(s){
   return String(s || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
     const i = l.indexOf("|");
@@ -1427,12 +1442,14 @@ function songCard(s, stat){
   const acts = document.createElement("div"); acts.className = "acts";
   (NEXT_STATUS[s.status] || []).forEach(x => {
     const b = document.createElement("button");
-    b.className = "btn ghost"; b.textContent = ro(x);
+    b.className = "btn ghost";
+    b.textContent = MOVE_LABEL[x] || ro(x);
+    b.title = MOVE_HINT[x] || "";
     b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:x }, s.title + " → " + x);
     acts.appendChild(b);
   });
   const ed = document.createElement("button");
-  ed.className = "btn ghost"; ed.textContent = "수정";
+  ed.className = "btn ghost"; ed.textContent = "곡 정보 수정";
   ed.onclick = () => openSongForm(s);
   acts.appendChild(ed);
   det.appendChild(acts);
