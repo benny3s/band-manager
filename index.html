@@ -3,434 +3,794 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>애쉬만루트 합주 일정</title>
+<title>밴드매니저 — 합주 일정 취합</title>
+<meta name="description" content="가능한 시간을 칠하면 전원 되는 시간이 자동으로 나옵니다">
 <style>
 :root{
-  --bg:#f7f7f5; --card:#fff; --line:#e3e3df; --ink:#1c1c1a; --muted:#6f6f68;
-  --accent:#2f7d4f; --accent-soft:#e6f2ea; --no:#b4443a; --no-soft:#fbe9e7;
-  --partial:#9a6b1f; --partial-soft:#fbf1de; --shadow:0 1px 2px rgba(0,0,0,.05);
+  --bg:#f7f7f5; --card:#fff; --line:#e4e4e0; --ink:#1b1b19; --muted:#6e6e67;
+  --accent:#2f7d4f; --accent-rgb:47,125,79; --soft:#eef4ef; --on-accent:#fff;
+  --warn:#b4472f; --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#17181a; --card:#1f2124; --line:#31343a; --ink:#ececeb; --muted:#9a9a95;
-    --accent:#6dc08c; --accent-soft:#20352a; --no:#e28078; --no-soft:#3a2320;
-    --partial:#d7ac63; --partial-soft:#3a2f1b; --shadow:none;
+    --bg:#141517; --card:#1e2023; --line:#2f3238; --ink:#ededec; --muted:#98988f;
+    --accent:#6dc08c; --accent-rgb:109,192,140; --soft:#232a25; --on-accent:#12201a;
+    --warn:#e08b76; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#17181a; --card:#1f2124; --line:#31343a; --ink:#ececeb; --muted:#9a9a95;
-  --accent:#6dc08c; --accent-soft:#20352a; --no:#e28078; --no-soft:#3a2320;
-  --partial:#d7ac63; --partial-soft:#3a2f1b; --shadow:none;
+  --bg:#141517; --card:#1e2023; --line:#2f3238; --ink:#ededec; --muted:#98988f;
+  --accent:#6dc08c; --accent-rgb:109,192,140; --soft:#232a25; --on-accent:#12201a;
+  --warn:#e08b76; --shadow:none;
 }
 *{box-sizing:border-box}
+html,body{overscroll-behavior-y:none}
 body{
-  margin:0;background:var(--bg);color:var(--ink);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
+  margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
        "Malgun Gothic",system-ui,sans-serif;
-  padding:0 16px 120px;-webkit-text-size-adjust:100%;
+  padding:0 14px calc(90px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust:100%;
 }
-.wrap{max-width:620px;margin:0 auto}
-header{padding-block:26px 14px}
-h1{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
-.sub{margin:0;color:var(--muted);font-size:13px}
-section{margin-top:22px}
-.label{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted);
-  text-transform:uppercase;margin:0 0 9px;display:flex;align-items:center;gap:10px}
-.label .link{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;
-  font-size:12px;color:var(--accent);background:none;border:0;cursor:pointer;padding:0}
+.wrap{max-width:860px;margin:0 auto}
 
-/* 이름 */
-.names{display:flex;flex-wrap:wrap;gap:8px}
-.name{border:1px solid var(--line);background:var(--card);color:var(--ink);
-  border-radius:999px;padding:9px 16px;font-size:14px;font-weight:600;
-  cursor:pointer;box-shadow:var(--shadow)}
-.name[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-.name .dot{display:inline-block;width:6px;height:6px;border-radius:50%;
-  background:var(--accent);margin-left:7px;vertical-align:middle}
-.name[aria-pressed="true"] .dot{background:#fff}
+header{padding:26px 0 14px}
+h1{margin:0;font-size:21px;letter-spacing:-.03em}
+.sub{margin:3px 0 0;color:var(--muted);font-size:13px}
 
-/* 멤버 관리 */
-.manage{display:none;margin-top:10px;background:var(--card);border:1px solid var(--line);
-  border-radius:12px;padding:12px;box-shadow:var(--shadow)}
-.manage.open{display:block}
-.mrow{display:flex;gap:7px;align-items:center;margin-bottom:7px}
-.mrow input{flex:1;min-width:0;border:1px solid var(--line);background:transparent;
-  color:var(--ink);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit}
-.mrow button{border:1px solid var(--line);background:transparent;color:var(--muted);
-  border-radius:8px;padding:9px 11px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
-.mrow button.danger{color:var(--no);border-color:var(--no)}
-.mrow button.go{color:#fff;background:var(--accent);border-color:var(--accent)}
-.mhint{margin:10px 0 0;font-size:11.5px;color:var(--muted)}
+/* ── 탭 ── */
+.tabs{display:flex;gap:6px;margin:14px 0 18px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);
+  font:inherit;font-weight:600;font-size:14px;padding:9px 6px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--soft);color:var(--accent)}
 
-/* 날짜 */
-.rows{display:flex;flex-direction:column;gap:8px}
-.row{background:var(--card);border:1px solid var(--line);border-radius:12px;
-  padding:11px 13px;box-shadow:var(--shadow)}
-.row.dim{opacity:.45}
-.rowTop{display:flex;align-items:center;gap:10px}
-.date{flex:1;min-width:0}
-.date b{font-size:15px;font-weight:700}
-.date span{color:var(--muted);font-size:12px;margin-left:6px}
-.pick{display:flex;gap:5px;flex-shrink:0}
-.pick button{border:1px solid var(--line);background:transparent;color:var(--muted);
-  border-radius:8px;padding:7px 10px;font-size:13px;font-weight:700;cursor:pointer;min-width:38px}
-.pick button[aria-pressed="true"][data-v="ok"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
-.pick button[aria-pressed="true"][data-v="part"]{background:var(--partial-soft);border-color:var(--partial);color:var(--partial)}
-.pick button[aria-pressed="true"][data-v="no"]{background:var(--no-soft);border-color:var(--no);color:var(--no)}
-.slots{display:none;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
-.row.open .slots{display:flex}
-.slot{border:1px solid var(--line);background:transparent;color:var(--muted);
-  border-radius:7px;padding:6px 9px;font-size:12px;font-weight:600;cursor:pointer}
-.slot[aria-pressed="true"]{background:var(--partial-soft);border-color:var(--partial);color:var(--partial)}
-.hint{margin:8px 0 0;font-size:11.5px;color:var(--muted)}
+section[hidden]{display:none}
 
-/* 현황 */
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-th,td{padding:7px 9px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--line)}
-th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card);font-weight:700}
-thead th{font-size:11px;color:var(--muted);font-weight:700}
-tbody tr:last-child td{border-bottom:0}
-td.y{color:var(--accent);font-weight:700}
-td.n{color:var(--no)}
-td.p{color:var(--partial);font-weight:600;font-size:11.5px}
-tr.all td:first-child{color:var(--accent)}
-.empty{color:var(--muted);font-size:13px;padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.card h2{margin:0 0 4px;font-size:15px;letter-spacing:-.02em}
+.card .hint{margin:0 0 12px;color:var(--muted);font-size:12.5px}
+.card h2+.grid-wrap,.card h2+.chips{margin-top:12px}
 
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);
-  border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
-.bar .inner{max-width:620px;margin:0 auto;display:flex;align-items:center;gap:12px}
-.status{flex:1;font-size:12.5px;color:var(--muted);min-width:0}
-.save{border:0;background:var(--accent);color:#fff;border-radius:10px;
-  padding:12px 26px;font-size:15px;font-weight:700;cursor:pointer}
-.save:disabled{opacity:.4;cursor:default}
-footer{margin-top:26px;color:var(--muted);font-size:11.5px;line-height:1.7}
+/* ── 칩 ── */
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{appearance:none;font:inherit;font-size:13.5px;padding:7px 13px;border-radius:999px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);font-weight:600}
+.chip.done::after{content:" ✓";opacity:.7}
+
+/* ── 그리드 ── */
+.grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.grid{display:grid;min-width:max-content;user-select:none;-webkit-user-select:none}
+.gc{border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;min-height:34px;padding:2px 4px;text-align:center;line-height:1.25}
+.gc:last-child{border-right:0}
+.grid .hh{position:sticky;left:0;z-index:2;background:var(--card);color:var(--muted);
+  font-variant-numeric:tabular-nums;cursor:pointer;min-width:46px}
+.grid .dh{background:var(--card);font-weight:700;font-size:11.5px;cursor:pointer;
+  position:sticky;top:0;z-index:1;flex-direction:column;gap:0;min-height:42px}
+.grid .dh .dow{font-weight:500;color:var(--muted);font-size:10.5px}
+.grid .dh.sun .dow{color:var(--warn)}
+.grid .corner{position:sticky;left:0;top:0;z-index:3;background:var(--card)}
+.slot{background:var(--card);touch-action:none;cursor:pointer;min-width:62px}
+.slot.on{background:var(--accent)}
+.slot.alt{background:var(--soft)}
+.slot.alt.on{background:var(--accent)}
+
+/* 결과 히트맵 */
+.hcell{font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;
+  color:var(--ink);background:var(--card)}
+.hcell.z{color:var(--muted);opacity:.45;font-weight:500}
+.hcell.full{outline:2px solid var(--accent);outline-offset:-2px}
+.hcell.pick{outline:2px solid var(--ink);outline-offset:-2px}
+
+/* ── 메모 ── */
+.notes{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.noterow{display:flex;align-items:center;gap:9px}
+.noterow .nd{flex:0 0 76px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.noterow .nd.none{color:var(--warn);font-weight:600}
+input[type=text],input[type=date],input[type=number],select{
+  font:inherit;font-size:14px;padding:8px 11px;border-radius:9px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
+input::placeholder{color:var(--muted);opacity:.7}
+
+/* ── 버튼 ── */
+.btn{appearance:none;font:inherit;font-size:14px;font-weight:600;padding:9px 15px;
+  border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.ghost{border:0;background:transparent;color:var(--muted);padding:6px 8px;font-weight:500;font-size:13px}
+.btn.danger{color:var(--warn)}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row.tight{gap:6px}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* ── 상태바 ── */
+.statusbar{position:fixed;left:0;right:0;bottom:0;z-index:20;
+  background:color-mix(in srgb,var(--card) 92%,transparent);
+  backdrop-filter:blur(10px);border-top:1px solid var(--line);
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+.statusbar .inner{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:10px;
+  justify-content:space-between}
+.st{font-size:13px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st.ok{color:var(--accent)}
+.st.err{color:var(--warn)}
+
+/* ── 기타 ── */
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:9px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;
+  border:1px solid var(--line);vertical-align:-2px;margin-right:5px}
+.pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;
+  background:var(--soft);color:var(--accent);font-weight:600}
+.pill.grey{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+ul.plain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+ul.plain li{display:flex;align-items:center;gap:8px;font-size:14px}
+ul.plain li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.best{display:flex;flex-direction:column;gap:9px}
+.best .b{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:var(--bg)}
+.best .b.top{border-color:var(--accent);background:var(--soft)}
+.best .b .bt{font-weight:700;font-size:14.5px;letter-spacing:-.02em}
+.best .b .bs{color:var(--muted);font-size:12.5px;margin-top:2px}
+.detail{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;font-size:13.5px}
+.detail .lbl{color:var(--muted);font-size:12px;margin-bottom:2px}
+.detail p{margin:0 0 9px}
+.empty{color:var(--muted);font-size:13.5px;text-align:center;padding:22px 6px}
+footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<header>
-  <h1>애쉬만루트 합주 가능 날짜</h1>
-  <p class="sub">그루브 사당점 C룸 · 기본 일요일 오전 10시~12시</p>
-</header>
+  <header>
+    <h1 id="title">합주 일정 취합</h1>
+    <p class="sub" id="subtitle">가능한 시간을 손가락으로 쭉 칠해주세요</p>
+  </header>
 
-<section>
-  <p class="label">1. 본인 이름
-    <button class="link" id="manageBtn" type="button">멤버 관리</button>
-  </p>
-  <div class="names" id="names"></div>
-  <div class="manage" id="manage"></div>
-</section>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-answer" aria-selected="true">응답하기</button>
+    <button role="tab" id="tab-result" aria-selected="false">결과</button>
+    <button role="tab" id="tab-admin" aria-selected="false" hidden>관리</button>
+  </div>
 
-<section id="dateSection" hidden>
-  <p class="label">2. 날짜별 가능 여부</p>
-  <div class="rows" id="rows"></div>
-  <p class="hint">○ = 10~12시 가능 · 시간 = 다른 시간대만 가능 (칸을 눌러 고르세요) · ✕ = 불가</p>
-</section>
+  <!-- ══════════ 응답 ══════════ -->
+  <section id="view-answer">
+    <div class="card">
+      <h2>누구세요?</h2>
+      <p class="hint">이름을 누르면 내 응답을 불러옵니다. ✓ 는 이미 응답한 사람.</p>
+      <div class="chips" id="memberChips"></div>
+    </div>
 
-<section>
-  <p class="label">응답 현황</p>
-  <div class="scroll" id="board"><p class="empty">불러오는 중…</p></div>
-</section>
+    <div class="card" id="answerCard" hidden>
+      <div class="spread">
+        <h2 style="margin:0">가능한 시간</h2>
+        <button class="btn ghost" id="clearAll" style="flex:0 0 auto;white-space:nowrap">전체 지우기</button>
+      </div>
+      <p class="hint" style="margin:4px 0 0">
+        칸을 누른 채 쭉 끌면 여러 칸이 한 번에 칠해집니다.<br>
+        날짜(위) · 시간(왼쪽)을 누르면 그 줄 전체가 토글돼요.
+      </p>
+      <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="grid"></div></div>
+      <div class="legend">
+        <span><i style="background:var(--accent);border-color:var(--accent)"></i>가능</span>
+        <span><i style="background:var(--card)"></i>불가</span>
+      </div>
+    </div>
 
-<footer>
-  응답과 멤버 목록은 구글 시트에 저장됩니다. 언제든 다시 들어와 수정할 수 있어요.<br>
-  그루브는 12주 이내만 예약이 가능해서 앞으로 12주치 일요일만 보여줍니다.
-</footer>
+    <div class="card" id="noteCard" hidden>
+      <h2>안 되는 날 사유 <span class="pill grey">선택</span></h2>
+      <p class="hint">하루 단위로 한 줄이면 충분합니다. 예: 출장, 결혼식, 오후만 가능</p>
+      <div class="notes" id="notes"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ 결과 ══════════ -->
+  <section id="view-result" hidden>
+    <div class="card">
+      <div class="spread">
+        <div style="min-width:0">
+          <h2>응답 현황</h2>
+          <p class="hint" style="margin-bottom:0" id="respSummary"></p>
+        </div>
+        <button class="btn ghost" id="reloadBtn" style="flex:0 0 auto;white-space:nowrap">새로고침</button>
+      </div>
+      <div class="chips" id="respChips" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>추천 시간대</h2>
+      <p class="hint">연속 2시간 이상 비는 구간만 모았습니다.</p>
+      <div class="row tight" id="threshChips" style="margin-bottom:12px"></div>
+      <div class="best" id="best"></div>
+    </div>
+
+    <div class="card">
+      <h2>전체 표</h2>
+      <p class="hint">숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.</p>
+      <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="heat"></div></div>
+      <div id="heatDetail"></div>
+    </div>
+
+    <div class="card" id="noteDigest" hidden>
+      <h2>멤버 메모</h2>
+      <div id="noteList"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ 관리 ══════════ -->
+  <section id="view-admin" hidden>
+    <div class="card">
+      <h2>날짜 후보</h2>
+      <p class="hint">여기 올린 날짜만 멤버 화면에 보입니다.</p>
+      <div class="row" style="margin-bottom:10px">
+        <input type="date" id="dateInput" style="flex:1 1 150px">
+        <button class="btn" id="dateAdd">추가</button>
+      </div>
+      <div class="row" style="margin-bottom:12px">
+        <select id="dowSel" style="flex:0 1 110px">
+          <option value="0">일요일</option><option value="6">토요일</option>
+          <option value="5">금요일</option><option value="4">목요일</option>
+          <option value="3">수요일</option><option value="2">화요일</option>
+          <option value="1">월요일</option>
+        </select>
+        <input type="number" id="dowN" value="6" min="1" max="20" style="flex:0 1 74px">
+        <button class="btn" id="dowAdd">개 한번에 추가</button>
+      </div>
+      <ul class="plain" id="dateList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>멤버</h2>
+      <p class="hint">인원 제한 없음. 이름을 고치면 응답도 따라갑니다.</p>
+      <div class="row" style="margin-bottom:12px">
+        <input type="text" id="memberInput" placeholder="이름" style="flex:1 1 150px">
+        <button class="btn" id="memberAdd">추가</button>
+      </div>
+      <ul class="plain" id="memberList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>시간 범위 · 제목</h2>
+      <div class="row" style="margin:10px 0">
+        <input type="number" id="hStart" min="0" max="23" style="flex:0 1 74px">
+        <span class="hint" style="margin:0">시 ~</span>
+        <input type="number" id="hEnd" min="1" max="24" style="flex:0 1 74px">
+        <span class="hint" style="margin:0">시</span>
+        <button class="btn" id="hourSave">저장</button>
+      </div>
+      <div class="row">
+        <input type="text" id="titleInput" placeholder="제목" style="flex:1 1 180px">
+        <button class="btn" id="titleSave">저장</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>기타</h2>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="copyLink">멤버용 링크 복사</button>
+        <button class="btn danger" id="resetBtn">응답 전체 초기화</button>
+      </div>
+    </div>
+  </section>
+
+  <footer id="foot"></footer>
 </div>
 
-<div class="bar">
+<div class="statusbar">
   <div class="inner">
-    <span class="status" id="status">이름을 먼저 골라주세요</span>
-    <button class="save" id="save" disabled>저장</button>
+    <span class="st" id="status">불러오는 중…</span>
+    <button class="btn primary" id="saveBtn" hidden>저장</button>
   </div>
 </div>
 
 <script>
-/* ========= 설정 ========= */
-const CONFIG = {
-  endpoint: "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec",
-  weeks: 12,                  // 앞으로 몇 주치 일요일
-  slotStart: 9,
-  slotEnd: 22
-};
-/* ======================== */
+/* ═══════════════ 설정 ═══════════════ */
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
 
-const $ = s => document.querySelector(s);
-const pad = n => String(n).padStart(2, "0");
-const ready = () => CONFIG.endpoint.indexOf("__") !== 0;
-
-function sundays(n){
-  const t = new Date(); t.setHours(0,0,0,0);
-  const d = new Date(t); d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-  const out = [];
-  for (let i=0;i<n;i++){ out.push(new Date(d)); d.setDate(d.getDate()+7); }
-  return out;
-}
-const iso   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const short = d => `${d.getMonth()+1}/${d.getDate()}`;
-
-const DATES = sundays(CONFIG.weeks);
-let members  = [];
-let everyone = {};
-let me = null;
-let answers = {};
-let busy = false;
-
-const remember = v => { try { localStorage.setItem("hapju.me", v); } catch(e){} };
-const recall   = ()  => { try { return localStorage.getItem("hapju.me"); } catch(e){ return null; } };
-
-function toRange(hours){
-  const h = [...new Set(hours)].sort((a,b)=>a-b);
-  if (!h.length) return "";
-  const parts = []; let s = h[0], p = h[0];
-  for (let i=1;i<h.length;i++){
-    if (h[i] === p+1){ p = h[i]; continue; }
-    parts.push(`${pad(s)}-${pad(p+1)}`); s = p = h[i];
-  }
-  parts.push(`${pad(s)}-${pad(p+1)}`);
-  return parts.join(", ");
-}
-function cellValue(a){
-  if (!a) return "";
-  if (a.v === "ok") return "O";
-  if (a.v === "no") return "X";
-  return toRange(a.slots || []);
-}
-function parseCell(raw){
-  raw = (raw || "").trim();
-  if (!raw) return null;
-  if (raw === "O") return {v:"ok", slots:[]};
-  if (raw === "X") return {v:"no", slots:[]};
-  const hrs = [];
-  raw.split(",").forEach(seg => {
-    const m = seg.trim().match(/^(\d{1,2})-(\d{1,2})$/);
-    if (m) for (let h=+m[1]; h<+m[2]; h++) hrs.push(h);
-  });
-  return {v:"part", slots:hrs};
-}
-
-/* ---------- 통신 ----------
-   Apps Script /exec 는 script.googleusercontent.com 으로 리다이렉트되는데
-   브라우저 fetch 는 그 리다이렉트에서 CORS 때문에 응답이 멈춥니다.
-   그래서 <script> 태그로 부르는 JSONP 를 씁니다. */
+/* ═══════════════ 통신 (JSONP) ═══════════════
+   Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
+   fetch 는 그 리다이렉트에서 CORS 로 멈춥니다. JSONP 만 씁니다. */
 function api(params){
   return new Promise((resolve, reject) => {
     const cb = "__jp" + Math.random().toString(36).slice(2);
     const s  = document.createElement("script");
     const q  = new URLSearchParams(Object.assign({}, params, { callback: cb }));
-    const done = () => { try { delete window[cb]; } catch(e){ window[cb] = undefined; } s.remove(); clearTimeout(t); };
-    const t = setTimeout(() => { done(); reject(new Error("timeout")); }, 30000);
-    window[cb] = data => { done(); resolve(data); };
-    s.onerror = () => { done(); reject(new Error("network")); };
-    s.src = CONFIG.endpoint + "?" + q.toString();
+    const done = () => {
+      try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+      s.remove(); clearTimeout(t);
+    };
+    const t = setTimeout(() => { done(); reject(new Error("응답이 없습니다")); }, 30000);
+    window[cb] = data => { done(); data && data.ok === false ? reject(new Error(data.error || "오류")) : resolve(data); };
+    s.onerror = () => { done(); reject(new Error("네트워크 오류")); };
+    s.src = ENDPOINT + "?" + q.toString();
     document.head.appendChild(s);
   });
 }
-function setStatus(t){ $("#status").textContent = t; }
 
-/* ---------- 이름 ---------- */
-function renderNames(){
-  const box = $("#names"); box.innerHTML = "";
-  if (!members.length){
-    box.innerHTML = '<span class="empty" style="padding:0">멤버가 없습니다 — 멤버 관리에서 추가하세요</span>';
-    return;
+/* ═══════════════ 상태 ═══════════════ */
+let ST  = { config:{ dates:[], hourStart:9, hourEnd:22, title:"" }, members:[], hours:{}, notes:{} };
+let me  = localStorage.getItem("bm_name") || "";
+let sel = new Set();          // "YYYY-MM-DD|H"
+let noteDraft = {};
+let dirty = false, saving = false, saveTimer = null;
+let thresh = null;            // 결과 필터 기준 인원 (null = 전원 자동 추종)
+let pick = null;              // 결과에서 선택한 칸
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const DOW = ["일","월","화","수","목","금","토"];
+
+function dObj(d){ const [y,m,dd] = d.split("-").map(Number); return new Date(y, m-1, dd); }
+function fmtD(d){ const o = dObj(d); return (o.getMonth()+1) + "/" + o.getDate(); }
+function fmtDow(d){ return DOW[dObj(d).getDay()]; }
+function fmtFull(d){ return fmtD(d) + "(" + fmtDow(d) + ")"; }
+function hh(h){ return String(h).padStart(2,"0") + ":00"; }
+function hours(){ const c = ST.config, a = []; for(let h=c.hourStart; h<c.hourEnd; h++) a.push(h); return a; }
+function key(d,h){ return d + "|" + h; }
+
+function setStatus(msg, cls){
+  const el = $("#status");
+  el.textContent = msg;
+  el.className = "st" + (cls ? " " + cls : "");
+}
+
+/* ═══════════════ 로드 ═══════════════ */
+async function load(){
+  setStatus("불러오는 중…");
+  try {
+    ST = await api({ action:"load" });
+    if (me && !ST.members.includes(me)) me = "";
+    applyConfig();
+    renderAll();
+    setStatus("최신 상태", "ok");
+  } catch(e){
+    setStatus("불러오기 실패 — " + e.message, "err");
   }
-  members.forEach(nm => {
+}
+
+function applyConfig(){
+  const t = ST.config.title || "합주 일정 취합";
+  $("#title").textContent = t;
+  document.title = t + " — 밴드매니저";
+  $("#hStart").value = ST.config.hourStart;
+  $("#hEnd").value   = ST.config.hourEnd;
+  $("#titleInput").value = ST.config.title || "";
+}
+
+function loadMine(){
+  sel = new Set();
+  noteDraft = {};
+  if (!me) return;
+  const mine = ST.hours[me] || {};
+  for (const d of ST.config.dates) (mine[d] || []).forEach(h => sel.add(key(d,h)));
+  const mn = ST.notes[me] || {};
+  for (const d of ST.config.dates) if (mn[d]) noteDraft[d] = mn[d];
+}
+
+function answered(name){
+  const h = ST.hours[name];
+  if (!h) return false;
+  return ST.config.dates.some(d => Array.isArray(h[d]));
+}
+
+/* ═══════════════ 렌더 ═══════════════ */
+function renderAll(){
+  renderMembers();
+  renderGrid();
+  renderNotes();
+  renderResult();
+  renderAdmin();
+  const n = ST.config.dates.length;
+  $("#subtitle").textContent = n
+    ? "가능한 시간을 손가락으로 쭉 칠해주세요 · 후보 " + n + "일"
+    : "아직 날짜 후보가 없습니다. 관리자에게 물어보세요.";
+  $("#foot").textContent = "밴드매니저 · benny3s.github.io";
+}
+
+function renderMembers(){
+  const box = $("#memberChips");
+  box.innerHTML = "";
+  if (!ST.members.length){
+    box.innerHTML = '<span class="empty" style="padding:6px">멤버가 없습니다. 관리 화면에서 추가하세요.</span>';
+  }
+  ST.members.forEach(name => {
     const b = document.createElement("button");
-    b.className = "name"; b.type = "button";
-    b.setAttribute("aria-pressed", String(nm === me));
-    const answered = everyone[nm] && Object.keys(everyone[nm]).length;
-    b.innerHTML = nm + (answered ? '<span class="dot"></span>' : "");
-    b.onclick = () => pickName(nm);
+    b.className = "chip" + (answered(name) ? " done" : "");
+    b.type = "button";
+    b.textContent = name;
+    b.setAttribute("aria-pressed", String(name === me));
+    b.onclick = () => {
+      if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
+      me = name;
+      localStorage.setItem("bm_name", me);
+      dirty = false;
+      loadMine();
+      renderMembers(); renderGrid(); renderNotes();
+      setStatus(me + " 님으로 응답 중", "ok");
+      $("#saveBtn").hidden = false;
+    };
     box.appendChild(b);
   });
-}
-function pickName(nm){
-  me = nm; remember(nm);
-  answers = {};
-  const mine = everyone[nm] || {};
-  DATES.forEach(d => {
-    const a = parseCell(mine[iso(d)]);
-    if (a) answers[iso(d)] = a;
-  });
-  renderNames(); renderRows(); renderBoard();
-  $("#dateSection").hidden = false;
-  $("#save").disabled = false;
-  setStatus(`${nm} 님으로 응답 중`);
+  const has = !!me && ST.config.dates.length > 0;
+  $("#answerCard").hidden = !has;
+  $("#noteCard").hidden   = !has;
+  $("#saveBtn").hidden    = !has;
 }
 
-/* ---------- 멤버 관리 ---------- */
-$("#manageBtn").onclick = () => {
-  const p = $("#manage");
-  p.classList.toggle("open");
-  if (p.classList.contains("open")) renderManage();
-};
-function renderManage(){
-  const p = $("#manage"); p.innerHTML = "";
-  members.forEach(nm => {
-    const row = document.createElement("div"); row.className = "mrow";
-    const inp = document.createElement("input");
-    inp.value = nm; inp.setAttribute("aria-label", nm + " 이름");
-    const ren = document.createElement("button");
-    ren.type = "button"; ren.textContent = "변경";
-    ren.onclick = () => {
-      const v = inp.value.trim();
-      if (!v || v === nm) return;
-      act({action:"member_rename", from:nm, to:v}, `${nm} → ${v}`);
+function renderGrid(){
+  const g = $("#grid"), ds = ST.config.dates, hs = hours();
+  g.innerHTML = "";
+  if (!ds.length || !me) return;
+  g.style.gridTemplateColumns = "46px repeat(" + ds.length + ", minmax(62px, 1fr))";
+
+  g.appendChild(cell("gc hh corner", "시"));
+  ds.forEach(d => {
+    const c = cell("gc dh" + (dObj(d).getDay() === 0 ? " sun" : ""), "");
+    c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>';
+    c.onclick = () => {
+      const all = hs.every(h => sel.has(key(d,h)));
+      hs.forEach(h => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
+      paintGrid(); touch();
     };
-    const del = document.createElement("button");
-    del.type = "button"; del.className = "danger"; del.textContent = "삭제";
-    let armed = false;
-    del.onclick = () => {
-      if (!armed){ armed = true; del.textContent = "정말?"; setTimeout(()=>{armed=false;del.textContent="삭제";}, 3000); return; }
-      act({action:"member_remove", name:nm}, `${nm} 삭제`);
-    };
-    row.append(inp, ren, del); p.appendChild(row);
+    g.appendChild(c);
   });
 
-  const add = document.createElement("div"); add.className = "mrow";
-  const ni = document.createElement("input");
-  ni.placeholder = "추가할 멤버 이름"; ni.setAttribute("aria-label","추가할 멤버 이름");
-  const ab = document.createElement("button");
-  ab.type = "button"; ab.className = "go"; ab.textContent = "추가";
-  const doAdd = () => { const v = ni.value.trim(); if (v) act({action:"member_add", name:v}, `${v} 추가`); };
-  ab.onclick = doAdd;
-  ni.onkeydown = e => { if (e.key === "Enter") doAdd(); };
-  add.append(ni, ab); p.appendChild(add);
-
-  const hint = document.createElement("p");
-  hint.className = "mhint";
-  hint.textContent = "멤버는 인원수 제한 없이 추가할 수 있어요. 삭제하면 그 사람 응답도 같이 지워집니다.";
-  p.appendChild(hint);
-}
-async function act(payload, what){
-  if (busy) return;
-  busy = true; setStatus(what + " 중…");
-  try{
-    const j = await api(payload);
-    if (!j.ok) throw new Error(j.error || "실패");
-    members = j.members || [];
-    everyone = j.responses || everyone;
-    if (payload.action === "member_rename" && me === payload.from) me = payload.to;
-    if (payload.action === "member_remove" && me === payload.name){ me = null; $("#dateSection").hidden = true; $("#save").disabled = true; }
-    renderNames(); renderManage(); renderBoard();
-    setStatus(what + " 완료 ✓");
-  }catch(e){ setStatus(what + " 실패 — 다시 시도해주세요"); }
-  busy = false;
+  hs.forEach((h, i) => {
+    const lab = cell("gc hh", String(h));
+    lab.onclick = () => {
+      const all = ds.every(d => sel.has(key(d,h)));
+      ds.forEach(d => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
+      paintGrid(); touch();
+    };
+    g.appendChild(lab);
+    ds.forEach(d => {
+      const c = cell("gc slot" + (i % 2 ? " alt" : ""), "");
+      c.dataset.k = key(d,h);
+      g.appendChild(c);
+    });
+  });
+  paintGrid();
 }
 
-/* ---------- 날짜 ---------- */
-function renderRows(){
-  const box = $("#rows"); box.innerHTML = "";
-  DATES.forEach(d => {
-    const key = iso(d), a = answers[key];
+function cell(cls, text){
+  const el = document.createElement("div");
+  el.className = cls;
+  if (text) el.textContent = text;
+  return el;
+}
+
+function paintGrid(){
+  $$("#grid .slot").forEach(c => c.classList.toggle("on", sel.has(c.dataset.k)));
+}
+
+/* ── 드래그 칠하기 ── */
+(function(){
+  const g = $("#grid");
+  let mode = null;
+  const at = (x,y) => { const el = document.elementFromPoint(x,y); return el && el.closest ? el.closest(".slot") : null; };
+  const apply = c => {
+    if (!c) return;
+    const k = c.dataset.k;
+    if (mode === "on")  { if (!sel.has(k)) { sel.add(k); c.classList.add("on"); } }
+    else                { if (sel.has(k))  { sel.delete(k); c.classList.remove("on"); } }
+  };
+  g.addEventListener("pointerdown", e => {
+    const c = e.target.closest(".slot");
+    if (!c) return;
+    e.preventDefault();
+    try { g.setPointerCapture(e.pointerId); } catch(err){}
+    mode = sel.has(c.dataset.k) ? "off" : "on";
+    apply(c);
+  });
+  g.addEventListener("pointermove", e => { if (mode) apply(at(e.clientX, e.clientY)); });
+  const end = () => { if (mode){ mode = null; touch(); } };
+  g.addEventListener("pointerup", end);
+  g.addEventListener("pointercancel", end);
+  window.addEventListener("pointerup", end);
+})();
+
+function renderNotes(){
+  const box = $("#notes"); box.innerHTML = "";
+  if (!me) return;
+  ST.config.dates.forEach(d => {
+    const none = hours().every(h => !sel.has(key(d,h)));
     const row = document.createElement("div");
-    row.className = "row" + (a && a.v === "part" ? " open" : "") + (a && a.v === "no" ? " dim" : "");
-
-    const top = document.createElement("div"); top.className = "rowTop";
-    const dt = document.createElement("div"); dt.className = "date";
-    dt.innerHTML = `<b>${short(d)}</b><span>일요일</span>`;
-    top.appendChild(dt);
-
-    const pick = document.createElement("div"); pick.className = "pick";
-    [["ok","○"],["part","시간"],["no","✕"]].forEach(([v,txt]) => {
-      const b = document.createElement("button");
-      b.type = "button"; b.dataset.v = v; b.textContent = txt;
-      b.setAttribute("aria-pressed", String(!!a && a.v === v));
-      b.onclick = () => {
-        if (a && a.v === v && v !== "part") delete answers[key];
-        else answers[key] = {v, slots:(a && a.slots) || []};
-        renderRows(); renderBoard();
-      };
-      pick.appendChild(b);
-    });
-    top.appendChild(pick); row.appendChild(top);
-
-    const slots = document.createElement("div"); slots.className = "slots";
-    for (let h = CONFIG.slotStart; h < CONFIG.slotEnd; h++){
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "slot"; b.textContent = pad(h) + "시";
-      b.setAttribute("aria-pressed", String(!!a && (a.slots||[]).includes(h)));
-      b.onclick = () => {
-        const cur = answers[key] || {v:"part", slots:[]};
-        const set = new Set(cur.slots || []);
-        set.has(h) ? set.delete(h) : set.add(h);
-        answers[key] = {v:"part", slots:[...set]};
-        renderRows(); renderBoard();
-      };
-      slots.appendChild(b);
-    }
-    row.appendChild(slots); box.appendChild(row);
+    row.className = "noterow";
+    const lab = document.createElement("span");
+    lab.className = "nd" + (none ? " none" : "");
+    lab.textContent = fmtFull(d);
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = none ? "이 날 안 되는 이유 (선택)" : "메모 (선택)";
+    inp.value = noteDraft[d] || "";
+    inp.oninput = () => { noteDraft[d] = inp.value; touch(); };
+    row.append(lab, inp);
+    box.appendChild(row);
   });
 }
 
-/* ---------- 현황판 ---------- */
-function renderBoard(){
-  const box = $("#board");
-  if (!members.length){ box.innerHTML = '<p class="empty">아직 멤버가 없습니다.</p>'; return; }
-
-  const get = (n, key) => (n === me) ? cellValue(answers[key]) : ((everyone[n] || {})[key] || "");
-
-  let h = "<table><thead><tr><th>이름</th>";
-  DATES.forEach(d => h += `<th>${short(d)}</th>`);
-  h += "</tr></thead><tbody>";
-  members.forEach(n => {
-    h += `<tr><td>${n}</td>`;
-    DATES.forEach(d => {
-      const v = get(n, iso(d));
-      const cls = v === "O" ? "y" : v === "X" ? "n" : v ? "p" : "";
-      h += `<td class="${cls}">${v || "·"}</td>`;
-    });
-    h += "</tr>";
+/* ═══════════════ 저장 ═══════════════ */
+function touch(){
+  dirty = true;
+  setStatus("변경됨 — 곧 저장됩니다");
+  $$("#notes .nd").forEach((el, i) => {
+    const d = ST.config.dates[i];
+    el.classList.toggle("none", hours().every(h => !sel.has(key(d,h))));
   });
-  // 전원 가능 여부 요약
-  h += `<tr class="all"><td>전원</td>`;
-  DATES.forEach(d => {
-    const key = iso(d);
-    const vals = members.map(n => get(n, key));
-    const done = vals.filter(v => v).length;
-    const okAll = done === members.length && vals.every(v => v === "O");
-    const anyNo = vals.some(v => v === "X");
-    h += `<td class="${okAll ? "y" : anyNo ? "n" : "p"}">${okAll ? "○" : anyNo ? "✕" : done + "/" + members.length}</td>`;
-  });
-  h += "</tr></tbody></table>";
-  box.innerHTML = h;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 1200);
 }
 
-/* ---------- 시작 ---------- */
-$("#save").onclick = async () => {
-  if (!me || busy) return;
-  busy = true; $("#save").disabled = true; setStatus("저장 중…");
-  const sending = {};
-  DATES.forEach(d => { sending[iso(d)] = cellValue(answers[iso(d)]); });
-  try{
-    const j = await api({ action:"save", name: me, payload: JSON.stringify(sending) });
-    if (!j.ok) throw new Error(j.error || "실패");
-    everyone[me] = sending;
-    setStatus("저장했습니다 ✓");
-    renderNames(); renderBoard();
-  }catch(e){ setStatus("저장 실패 — 다시 눌러주세요"); }
-  busy = false; $("#save").disabled = false;
+async function save(){
+  if (!me || saving) return;
+  clearTimeout(saveTimer);
+  saving = true;
+  setStatus("저장 중…");
+  const payload = { hours:{}, notes:{} };
+  ST.config.dates.forEach(d => {
+    payload.hours[d] = hours().filter(h => sel.has(key(d,h)));
+    payload.notes[d] = noteDraft[d] || "";
+  });
+  try {
+    ST = await api({ action:"save", name: me, payload: JSON.stringify(payload) });
+    dirty = false;
+    setStatus("저장됨 ✓ — " + me, "ok");
+    renderMembers(); renderResult();
+  } catch(e){
+    setStatus("저장 실패 — " + e.message + " (저장 버튼을 다시 눌러주세요)", "err");
+  } finally { saving = false; }
+}
+
+/* ═══════════════ 결과 ═══════════════ */
+function responders(){ return ST.members.filter(answered); }
+
+function availAt(d, h){
+  return responders().filter(n => (ST.hours[n]?.[d] || []).includes(h));
+}
+
+function renderResult(){
+  const rs = responders(), ds = ST.config.dates, hs = hours();
+  $("#respSummary").textContent =
+    ST.members.length ? rs.length + " / " + ST.members.length + "명 응답" : "멤버 없음";
+
+  const rc = $("#respChips"); rc.innerHTML = "";
+  ST.members.forEach(n => {
+    const s = document.createElement("span");
+    s.className = "chip" + (answered(n) ? " done" : "");
+    s.style.cursor = "default";
+    if (!answered(n)) s.style.opacity = ".5";
+    s.textContent = n;
+    rc.appendChild(s);
+  });
+
+  // thresh 가 null 이면 '전원'을 계속 따라갑니다 (응답자가 늘어도 기준이 안 낡음)
+  const T = (thresh === null || thresh > rs.length) ? (rs.length || 1) : thresh;
+
+  const tc = $("#threshChips"); tc.innerHTML = "";
+  for (let k = rs.length; k >= Math.max(1, rs.length - 3); k--){
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button";
+    b.textContent = (k === rs.length) ? "전원 " + k + "명" : k + "명 이상";
+    b.setAttribute("aria-pressed", String(k === T));
+    b.onclick = () => { thresh = (k === rs.length) ? null : k; renderResult(); };
+    tc.appendChild(b);
+  }
+
+  /* 추천 블록 */
+  const best = $("#best"); best.innerHTML = "";
+  const blocks = [];
+  ds.forEach(d => {
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2){
+        // 구간 내내 가능한 사람만 (교집합)
+        const who = rs.filter(n => run.every(h => (ST.hours[n]?.[d] || []).includes(h)));
+        blocks.push({ d, from: run[0], to: run[run.length-1] + 1, len: run.length, who });
+      }
+      run = [];
+    };
+    hs.forEach(h => { availAt(d,h).length >= T ? run.push(h) : flush(); });
+    flush();
+  });
+  blocks.sort((a,b) => b.who.length - a.who.length || b.len - a.len || (a.d < b.d ? -1 : 1));
+
+  if (!blocks.length){
+    best.innerHTML = '<div class="empty">' +
+      (rs.length ? T + "명 이상 되는 연속 2시간 구간이 없습니다." : "아직 응답이 없습니다.") +
+      '</div>';
+  } else {
+    blocks.slice(0, 8).forEach((b, i) => {
+      const el = document.createElement("div");
+      el.className = "b" + (i === 0 ? " top" : "");
+      el.innerHTML = '<div class="bt"></div><div class="bs"></div>';
+      el.querySelector(".bt").textContent =
+        fmtFull(b.d) + " " + hh(b.from) + "–" + hh(b.to);
+      el.querySelector(".bs").textContent =
+        b.who.length + "명 내내 가능 · " + b.len + "시간 · " + (b.who.join(", ") || "—");
+      best.appendChild(el);
+    });
+  }
+
+  /* 히트맵 */
+  const g = $("#heat"); g.innerHTML = "";
+  if (!ds.length){ g.innerHTML = ""; $("#heatDetail").innerHTML = ""; }
+  else {
+    g.style.gridTemplateColumns = "46px repeat(" + ds.length + ", minmax(62px, 1fr))";
+    g.appendChild(cell("gc hh corner", "시"));
+    ds.forEach(d => {
+      const c = cell("gc dh" + (dObj(d).getDay() === 0 ? " sun" : ""), "");
+      c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>';
+      g.appendChild(c);
+    });
+    hs.forEach(h => {
+      g.appendChild(cell("gc hh", String(h)));
+      ds.forEach(d => {
+        const n = availAt(d,h).length;
+        const c = cell("gc hcell" + (n ? "" : " z"), String(n));
+        if (n && rs.length) c.style.background =
+          "rgba(var(--accent-rgb)," + (0.12 + 0.72 * (n / rs.length)).toFixed(3) + ")";
+        if (n >= T && n > 0) c.classList.add("full");
+        if (pick && pick.d === d && pick.h === h) c.classList.add("pick");
+        c.onclick = () => { pick = { d, h }; renderResult(); };
+        g.appendChild(c);
+      });
+    });
+  }
+
+  /* 칸 상세 */
+  const det = $("#heatDetail");
+  if (pick && ds.includes(pick.d)){
+    const ok = availAt(pick.d, pick.h);
+    const no = rs.filter(n => !ok.includes(n));
+    const notes = no.map(n => ST.notes[n]?.[pick.d] ? n + ": " + ST.notes[n][pick.d] : null).filter(Boolean);
+    det.className = "detail";
+    det.innerHTML =
+      '<div class="lbl"></div><p class="t" style="font-weight:700"></p>' +
+      '<div class="lbl">가능</div><p class="a"></p>' +
+      '<div class="lbl">불가</div><p class="b"></p>' +
+      (notes.length ? '<div class="lbl">사유</div><p class="c"></p>' : "");
+    det.querySelector(".t").textContent =
+      fmtFull(pick.d) + " " + hh(pick.h) + "–" + hh(pick.h + 1);
+    det.querySelector(".a").textContent = ok.length ? ok.join(", ") : "없음";
+    det.querySelector(".b").textContent = no.length ? no.join(", ") : "없음";
+    if (notes.length) det.querySelector(".c").textContent = notes.join(" / ");
+  } else { det.className = ""; det.innerHTML = ""; }
+
+  /* 메모 모음 */
+  const nd = [];
+  rs.forEach(n => {
+    ds.forEach(d => { if (ST.notes[n]?.[d]) nd.push({ n, d, t: ST.notes[n][d] }); });
+  });
+  $("#noteDigest").hidden = !nd.length;
+  const nl = $("#noteList"); nl.innerHTML = "";
+  nd.sort((a,b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).forEach(x => {
+    const p = document.createElement("p");
+    p.style.margin = "0 0 7px"; p.style.fontSize = "13.5px";
+    p.innerHTML = '<span class="pill grey"></span> <b></b> <span></span>';
+    p.querySelector(".pill").textContent = fmtFull(x.d);
+    p.querySelector("b").textContent = x.n;
+    p.querySelector("span:last-child").textContent = x.t;
+    nl.appendChild(p);
+  });
+}
+
+/* ═══════════════ 관리 ═══════════════ */
+function renderAdmin(){
+  const dl = $("#dateList"); dl.innerHTML = "";
+  if (!ST.config.dates.length) dl.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
+  ST.config.dates.forEach(d => {
+    const li = document.createElement("li");
+    const s = document.createElement("span");
+    s.className = "grow"; s.textContent = fmtFull(d) + "  " + d;
+    const b = document.createElement("button");
+    b.className = "btn ghost danger"; b.textContent = "삭제";
+    b.onclick = () => setDates(ST.config.dates.filter(x => x !== d));
+    li.append(s, b); dl.appendChild(li);
+  });
+
+  const ml = $("#memberList"); ml.innerHTML = "";
+  if (!ST.members.length) ml.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
+  ST.members.forEach(n => {
+    const li = document.createElement("li");
+    const s = document.createElement("span");
+    s.className = "grow"; s.textContent = n;
+    const r = document.createElement("button");
+    r.className = "btn ghost"; r.textContent = "이름변경";
+    r.onclick = async () => {
+      const to = prompt("새 이름", n); if (!to || to === n) return;
+      await act({ action:"member_rename", from:n, to }, "이름 변경됨");
+      if (me === n){ me = to; localStorage.setItem("bm_name", me); }
+    };
+    const x = document.createElement("button");
+    x.className = "btn ghost danger"; x.textContent = "삭제";
+    x.onclick = () => {
+      if (!confirm(n + " 님을 삭제할까요? 응답도 함께 지워집니다.")) return;
+      act({ action:"member_remove", name:n }, "삭제됨");
+    };
+    li.append(s, r, x); ml.appendChild(li);
+  });
+}
+
+async function act(params, okMsg){
+  setStatus("처리 중…");
+  try {
+    ST = await api(params);
+    applyConfig(); loadMine(); renderAll();
+    setStatus(okMsg || "완료", "ok");
+  } catch(e){ setStatus("실패 — " + e.message, "err"); }
+}
+function setDates(list){ act({ action:"config_set", dates: list.join(",") }, "날짜 후보 저장됨"); }
+
+$("#dateAdd").onclick = () => {
+  const v = $("#dateInput").value;
+  if (!v) return;
+  if (ST.config.dates.includes(v)) { setStatus("이미 있는 날짜입니다", "err"); return; }
+  setDates(ST.config.dates.concat(v).sort());
+};
+$("#dowAdd").onclick = () => {
+  const dow = Number($("#dowSel").value), n = Math.max(1, Math.min(20, Number($("#dowN").value) || 1));
+  const t = new Date(); t.setHours(0,0,0,0);
+  const d = new Date(t); d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7));
+  const out = new Set(ST.config.dates);
+  for (let i = 0; i < n; i++){
+    out.add(d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"));
+    d.setDate(d.getDate() + 7);
+  }
+  setDates(Array.from(out).sort());
+};
+$("#memberAdd").onclick = () => {
+  const v = $("#memberInput").value.trim();
+  if (!v) return;
+  $("#memberInput").value = "";
+  act({ action:"member_add", name:v }, v + " 추가됨");
+};
+$("#memberInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#memberAdd").click(); });
+$("#hourSave").onclick = () => act({
+  action:"config_set", hourStart: $("#hStart").value, hourEnd: $("#hEnd").value
+}, "시간 범위 저장됨");
+$("#titleSave").onclick = () => act({ action:"config_set", title: $("#titleInput").value }, "제목 저장됨");
+$("#copyLink").onclick = async () => {
+  const url = location.origin + location.pathname;
+  try { await navigator.clipboard.writeText(url); setStatus("링크 복사됨 — " + url, "ok"); }
+  catch(e){ prompt("이 주소를 공유하세요", url); }
+};
+$("#resetBtn").onclick = () => {
+  if (!confirm("모든 멤버의 응답과 메모를 지웁니다. 계속할까요?")) return;
+  act({ action:"reset_answers" }, "초기화됨");
 };
 
-async function load(){
-  if (!ready()){ setStatus("설정 전입니다 (endpoint 미지정)"); renderNames(); renderBoard(); return; }
-  try{
-    const j = await api({ action:"load" });
-    if (!j.ok) throw new Error(j.error || "실패");
-    members  = j.members || [];
-    everyone = j.responses || {};
-    setStatus("이름을 먼저 골라주세요");
-  }catch(e){
-    setStatus("불러오기 실패 — 새로고침 해보세요");
+/* ═══════════════ 기타 UI ═══════════════ */
+$("#clearAll").onclick = () => { sel.clear(); paintGrid(); touch(); };
+$("#saveBtn").onclick  = save;
+$("#reloadBtn").onclick = load;
+
+const VIEWS = { answer:"#view-answer", result:"#view-result", admin:"#view-admin" };
+function show(v){
+  for (const k in VIEWS){
+    $(VIEWS[k]).hidden = (k !== v);
+    $("#tab-" + k).setAttribute("aria-selected", String(k === v));
   }
-  renderNames(); renderBoard();
-  const last = recall();
-  if (last && members.includes(last)) pickName(last);
+  $("#saveBtn").hidden = !(v === "answer" && me && ST.config.dates.length);
 }
-load();
+$("#tab-answer").onclick = () => show("answer");
+$("#tab-result").onclick = () => { renderResult(); show("result"); };
+$("#tab-admin").onclick  = () => { renderAdmin(); show("admin"); };
+
+function checkAdmin(){
+  const on = location.hash.toLowerCase() === "#admin";
+  $("#tab-admin").hidden = !on;
+  if (!on && !$("#view-admin").hidden) show("answer");
+}
+window.addEventListener("hashchange", checkAdmin);
+checkAdmin();
+
+window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
+
+if (me) { /* 이름 기억 */ }
+load().then(() => { if (me){ loadMine(); renderMembers(); renderGrid(); renderNotes(); setStatus(me + " 님으로 응답 중", "ok"); } });
 </script>
 </body>
 </html>
