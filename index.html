@@ -541,10 +541,11 @@ function setStatus(msg, cls){
 }
 
 /* ═══════════════ 로드 ═══════════════ */
-async function load(){
-  setStatus("불러오는 중…");
+/** fresh=true 면 서버 캐시를 버리고 스프레드시트를 직접 다시 읽는다 (시트를 손으로 고쳤을 때) */
+async function load(fresh){
+  setStatus(fresh ? "시트에서 다시 읽는 중…" : "불러오는 중…");
   try {
-    ST = await api({ action:"load" });
+    ST = await api(fresh ? { action:"load", fresh:1 } : { action:"load" });
     if (!ST.bands.length) { setStatus("밴드가 없습니다", "err"); return; }
     const want = localStorage.getItem("bm_band");
     B = ST.bands.some(b => b.id === want) ? want : ST.bands[0].id;
@@ -1535,7 +1536,7 @@ $("#calDow6").onclick  = () => toggleDow(6);
 /* ═══════════════ 탭 ═══════════════ */
 $("#clearAll").onclick  = () => { sel.clear(); paintGrid(); touch(); };
 $("#saveBtn").onclick   = save;
-$("#reloadBtn").onclick = load;
+$("#reloadBtn").onclick = () => load(true);
 
 const VIEWS = { answer:"#view-answer", result:"#view-result", song:"#view-song",
                 hist:"#view-hist", admin:"#view-admin" };

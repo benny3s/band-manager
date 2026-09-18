@@ -49,6 +49,17 @@ var CONF_DEFAULT = { dates: '', hourStart: 9, hourEnd: 22, title: '' };
  * put_ 로 쓴 내용은 캐시에 그대로 반영해 두어 뒤따르는 state_() 가 다시 읽지 않습니다. */
 var _SS = null, _SHEETS = null, _TAB = {}, _ROWS = {};
 
+/* 스프레드시트 왕복 하나가 수백 ms 라, 한 요청에 8개 탭을 읽으면 6~14초가 걸립니다.
+ * 그래서 탭별 행들을 ScriptCache 에도 넣어 둡니다.
+ * ─ 읽기(load)는 캐시가 있으면 스프레드시트를 아예 열지 않습니다
+ * ─ 쓰기는 시트에 쓰고 캐시도 같은 내용으로 갱신합니다
+ * ─ 시트를 손으로 고쳤다면 `fresh=1` 로 캐시를 무시하고 다시 읽습니다 (페이지의 '새로고침') */
+var CACHE_TTL = 3600;        // 1시간
+var _FRESH = false;
+function cache_() { return CacheService.getScriptCache(); }
+function ckey_(key) { return 'bm3_' + key; }
+function keysAll_() { var a = []; for (var k in TABS) a.push(ckey_(k)); return a; }
+
 function ss_() {
   if (!_SS) _SS = SpreadsheetApp.openById(SHEET_ID);
   return _SS;
@@ -66,6 +77,13 @@ function sheetByName_(name) {
 /** 헤더가 맞는 탭을 보장하고, 그 탭 전체를 한 번에 읽어 캐시한다. 옛 탭은 이름만 바꿔 보존. */
 function open_(key) {
   if (_ROWS[key]) return _ROWS[key];
+
+  if (!_FRESH) {                                   // 캐시 적중이면 시트를 열지 않는다
+    var hit = cache_().get(ckey_(key));
+    if (hit) {
+      try { _ROWS[key] = JSON.parse(hit); return _ROWS[key]; } catch (e) {}
+    }
+  }
 
   var spec = TABS[key], ss = ss_(), sh = sheetByName_(spec.name), vals = null;
 
@@ -118,19 +136,33 @@ function open_(key) {
     if (!empty) out.push(o);
   }
   _ROWS[key] = out;
+  cache_().put(ckey_(key), JSON.stringify(out), CACHE_TTL);
   return out;
 }
 
-function tab_(key) { open_(key); return _TAB[key]; }
+/** Sheet 객체가 필요할 때만 시트를 연다 (쓰기 경로 전용). 값은 읽지 않는다. */
+function sheetOf_(key) {
+  if (_TAB[key]) return _TAB[key];
+  var sh = sheetByName_(TABS[key].name);
+  if (sh) { _TAB[key] = sh; return sh; }
+
+  var keep = _ROWS[key];                           // 탭이 없으면 open_ 이 만들게 한다
+  delete _ROWS[key];
+  var save = _FRESH; _FRESH = true;
+  try { open_(key); } finally { _FRESH = save; }
+  if (keep) _ROWS[key] = keep;
+  return _TAB[key];
+}
+
+function tab_(key) { return sheetOf_(key); }
 
 /** 탭 전체를 객체 배열로 (실행 중엔 캐시) */
 function rows_(key) { return open_(key); }
 
-/** 탭 전체 덮어쓰기. 캐시도 같이 갱신해 state_() 가 다시 읽지 않게 한다. */
+/** 탭 전체 덮어쓰기. 캐시도 같이 갱신해 뒤따르는 읽기가 시트를 안 건드리게 한다. */
 function put_(key, list) {
   var spec = TABS[key];
-  open_(key);
-  var sh = _TAB[key];
+  var sh = sheetOf_(key);
 
   var out = [];
   for (var r = 0; r < list.length; r++) {
@@ -149,6 +181,7 @@ function put_(key, list) {
   }
 
   _ROWS[key] = list;
+  cache_().put(ckey_(key), JSON.stringify(list), CACHE_TTL);
 }
 
 function uid_(p) {
@@ -300,6 +333,7 @@ function state_() {
 
 function handle_(p) {
   var action = p.action || 'load';
+  if (p.fresh) { _FRESH = true; cache_().removeAll(keysAll_()); }   // 시트를 손으로 고쳤을 때
   if (action === 'load') return state_();
 
   var lock = LockService.getScriptLock();
