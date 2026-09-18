@@ -25,7 +25,6 @@
   --warn:#e08b76; --amber:#d8b75f; --shadow:none;
 }
 *{box-sizing:border-box}
-html,body{overscroll-behavior-y:none}
 body{
   margin:0; background:var(--bg); color:var(--ink);
   font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
@@ -38,7 +37,32 @@ body{
 header{padding:22px 0 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:20px;letter-spacing:-.03em}
 .sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
-#bandBar{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:0 1 auto}
+.titlebtn{appearance:none;border:0;background:transparent;padding:0;text-align:left;
+  color:inherit;font:inherit;cursor:pointer;min-width:0;flex:1 1 auto}
+.hact{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.iconbtn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--muted);
+  font:inherit;font-size:16px;line-height:1;width:36px;height:36px;border-radius:999px;cursor:pointer}
+.iconbtn:active{color:var(--accent);border-color:var(--accent)}
+.iconbtn.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.picker{position:relative}
+.pickbtn{display:inline-flex;align-items:center;gap:7px;appearance:none;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);
+  font:inherit;font-size:13.5px;font-weight:600;padding:8px 13px;border-radius:999px;
+  cursor:pointer;max-width:158px}
+.pickbtn .bn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pickbtn .caret{color:var(--muted);font-size:9px;flex:0 0 auto}
+.pickbtn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+.menu{position:absolute;right:0;top:calc(100% + 7px);z-index:40;min-width:180px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.16);overflow:hidden}
+.menu button{display:flex;width:100%;align-items:center;gap:8px;appearance:none;border:0;
+  background:transparent;color:var(--ink);font:inherit;font-size:14px;
+  padding:12px 14px;text-align:left;cursor:pointer}
+.menu button+button{border-top:1px solid var(--line)}
+.menu button:hover{background:var(--soft)}
+.menu button[aria-selected="true"]{color:var(--accent);font-weight:700}
+.menu .tail{margin-left:auto;font-size:11.5px;color:var(--muted);flex:0 0 auto}
 
 .tabs{display:flex;gap:3px;margin:12px 0 16px;background:var(--card);
   border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto}
@@ -222,11 +246,19 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <div class="wrap">
 
   <header>
-    <div style="min-width:0">
+    <button class="titlebtn" id="titleBtn">
       <h1 id="title">밴드매니저</h1>
       <p class="sub" id="subtitle">불러오는 중…</p>
+    </button>
+    <div class="hact">
+      <button class="iconbtn" id="refreshBtn" aria-label="새로고침" title="새로고침">↻</button>
+      <div class="picker">
+        <button class="pickbtn" id="bandBtn" aria-expanded="false">
+          <span class="bn" id="bandName">밴드</span><span class="caret">▼</span>
+        </button>
+        <div class="menu" id="bandMenu" hidden></div>
+      </div>
     </div>
-    <div class="chips" id="bandBar"></div>
   </header>
 
   <section id="view-lock" hidden>
@@ -533,7 +565,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18d";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18e";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -713,20 +745,55 @@ function renderAll(){
   show(view);
 }
 
+function closeBandMenu(){
+  $("#bandMenu").hidden = true;
+  $("#bandBtn").setAttribute("aria-expanded", "false");
+}
+
 function renderBands(){
-  const box = $("#bandBar"); box.innerHTML = "";
-  if (ST.bands.length < 2 && !ST.bands.length) return;
+  const cur = ST.bands.find(b => b.id === B);
+  $("#bandName").textContent = cur ? cur.name : "밴드";
+
+  const box = $("#bandMenu"); box.innerHTML = "";
   ST.bands.forEach(b => {
     const el = document.createElement("button");
-    el.className = "chip sm"; el.type = "button"; el.textContent = b.name;
-    el.setAttribute("aria-pressed", String(b.id === B));
+    el.type = "button";
+    el.setAttribute("aria-selected", String(b.id === B));
+    el.appendChild(document.createTextNode(b.name));
+    if (b.hasPin){
+      const t = document.createElement("span");
+      t.className = "tail";
+      t.textContent = b.locked ? "🔒 PIN" : "🔓";
+      el.appendChild(t);
+    }
     el.onclick = () => {
+      closeBandMenu();
+      if (b.id === B) return;
       if (dirty && !confirm("저장 안 된 변경이 있습니다. 밴드를 바꿀까요?")) return;
       dirty = false; pickBand(b.id);
     };
     box.appendChild(el);
   });
 }
+
+$("#bandBtn").onclick = e => {
+  e.stopPropagation();
+  const open = $("#bandMenu").hidden;
+  $("#bandMenu").hidden = !open;
+  $("#bandBtn").setAttribute("aria-expanded", String(open));
+};
+document.addEventListener("click", e => {
+  if (!e.target.closest(".picker")) closeBandMenu();
+});
+
+/** 제목·↻ 를 누르면 시트에서 다시 읽는다 (모바일에서 당겨서 새로고침도 됨) */
+async function refresh(){
+  const ic = $("#refreshBtn");
+  ic.classList.add("spin");
+  try { await load(true); } finally { ic.classList.remove("spin"); }
+}
+$("#refreshBtn").onclick = refresh;
+$("#titleBtn").onclick   = refresh;
 
 function renderMembers(){
   const box = $("#memberChips"); box.innerHTML = "";
