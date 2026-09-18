@@ -49,13 +49,16 @@ h1{margin:0;font-size:20px;letter-spacing:-.03em}
 .pickbtn{display:inline-flex;align-items:center;gap:7px;appearance:none;
   border:1px solid var(--line);background:var(--card);color:var(--ink);
   font:inherit;font-size:13.5px;font-weight:600;padding:8px 13px;border-radius:999px;
-  cursor:pointer;max-width:158px}
+  cursor:pointer;max-width:158px;position:relative;z-index:41}
 .pickbtn .bn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pickbtn .caret{color:var(--muted);font-size:9px;flex:0 0 auto}
 .pickbtn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
-.menu{position:absolute;right:0;top:calc(100% + 7px);z-index:40;min-width:180px;
+.backdrop{position:fixed;inset:0;z-index:38;background:transparent}
+.menu{display:none;position:absolute;right:0;top:calc(100% + 7px);z-index:40;
+  min-width:200px;max-width:min(78vw,300px);
   background:var(--card);border:1px solid var(--line);border-radius:12px;
   box-shadow:0 10px 28px rgba(0,0,0,.16);overflow:hidden}
+.menu.open{display:block}
 .menu button{display:flex;width:100%;align-items:center;gap:8px;appearance:none;border:0;
   background:transparent;color:var(--ink);font:inherit;font-size:14px;
   padding:12px 14px;text-align:left;cursor:pointer}
@@ -246,17 +249,18 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <div class="wrap">
 
   <header>
-    <button class="titlebtn" id="titleBtn">
+    <button class="titlebtn" id="titleBtn" type="button">
       <h1 id="title">밴드매니저</h1>
       <p class="sub" id="subtitle">불러오는 중…</p>
     </button>
     <div class="hact">
-      <button class="iconbtn" id="refreshBtn" aria-label="새로고침" title="새로고침">↻</button>
+      <button class="iconbtn" id="refreshBtn" type="button" aria-label="새로고침" title="새로고침">↻</button>
       <div class="picker">
-        <button class="pickbtn" id="bandBtn" aria-expanded="false">
+        <button class="pickbtn" id="bandBtn" type="button" aria-expanded="false">
           <span class="bn" id="bandName">밴드</span><span class="caret">▼</span>
         </button>
-        <div class="menu" id="bandMenu" hidden></div>
+        <div class="backdrop" id="bandBack" hidden></div>
+        <div class="menu" id="bandMenu"></div>
       </div>
     </div>
   </header>
@@ -530,7 +534,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     </div>
 
     <div class="card">
-      <h2>이 밴드 PIN</h2>
+      <h2 id="pinHead">PIN 설정</h2>
       <p class="hint" id="pinState"></p>
       <div class="row">
         <input type="text" id="pinInput" inputmode="numeric" autocomplete="off"
@@ -565,7 +569,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18e";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18f";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -686,9 +690,8 @@ function pickBand(id, quiet){
 
 function applyConfig(){
   const band = ST.bands.find(b => b.id === B) || { name: "밴드매니저" };
-  const t = cfg().title || band.name;
-  $("#title").textContent = t;
-  document.title = t + " — 밴드매니저";
+  /* 맨 위 제목은 항상 '밴드매니저'. 밴드 이름은 오른쪽 위 선택 버튼에, 제목은 부제에 둔다 */
+  document.title = (cfg().title || band.name) + " — 밴드매니저";
   $("#hStart").value = cfg().hourStart;
   $("#hEnd").value   = cfg().hourEnd;
   $("#titleInput").value = cfg().title || "";
@@ -722,10 +725,9 @@ function renderAll(){
   if (locked){
     for (const k in VIEWS) $(VIEWS[k]).hidden = true;
     $("#saveBtn").hidden = true;
-    const t = band ? band.name : "밴드매니저";
-    $("#title").textContent = t;
+    const t = band ? band.name : "밴드";
     document.title = t + " — 밴드매니저";
-    $("#subtitle").textContent = "PIN을 넣으면 열립니다";
+    $("#subtitle").textContent = t + " · PIN을 넣으면 열립니다";
     $("#lockTitle").textContent = t;
     $("#foot").textContent = "밴드매니저 " + BUILD;
     return;
@@ -739,16 +741,23 @@ function renderAll(){
   renderHist();
   renderAdmin();
   const n = cfg().dates.length;
-  $("#subtitle").textContent = n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
-                                 : "날짜 후보가 아직 없습니다";
+  const bits = [];
+  if (cfg().title) bits.push(cfg().title);
+  bits.push(n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
+              : "날짜 후보가 아직 없습니다");
+  $("#subtitle").textContent = bits.join(" · ");
   $("#foot").textContent = "밴드매니저 " + BUILD;
   show(view);
 }
 
-function closeBandMenu(){
-  $("#bandMenu").hidden = true;
-  $("#bandBtn").setAttribute("aria-expanded", "false");
+function bandMenuOpen(){ return $("#bandMenu").classList.contains("open"); }
+
+function setBandMenu(on){
+  $("#bandMenu").classList.toggle("open", !!on);
+  $("#bandBack").hidden = !on;
+  $("#bandBtn").setAttribute("aria-expanded", String(!!on));
 }
+function closeBandMenu(){ setBandMenu(false); }
 
 function renderBands(){
   const cur = ST.bands.find(b => b.id === B);
@@ -776,15 +785,13 @@ function renderBands(){
   });
 }
 
-$("#bandBtn").onclick = e => {
-  e.stopPropagation();
-  const open = $("#bandMenu").hidden;
-  $("#bandMenu").hidden = !open;
-  $("#bandBtn").setAttribute("aria-expanded", String(open));
-};
-document.addEventListener("click", e => {
-  if (!e.target.closest(".picker")) closeBandMenu();
+$("#bandBtn").addEventListener("click", e => {
+  e.preventDefault(); e.stopPropagation();
+  setBandMenu(!bandMenuOpen());
 });
+/* 바깥을 누르면 닫힌다. 투명한 판을 깔아두는 쪽이 document 리스너보다 확실하다 */
+$("#bandBack").addEventListener("click", closeBandMenu);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeBandMenu(); });
 
 /** 제목·↻ 를 누르면 시트에서 다시 읽는다 (모바일에서 당겨서 새로고침도 됨) */
 async function refresh(){
@@ -1715,6 +1722,7 @@ function renderAdmin(){
   });
 
   const cb = curBand();
+  $("#pinHead").textContent = (cb ? cb.name : "밴드") + " - PIN 설정";
   $("#pinState").textContent = cb && cb.hasPin
     ? "PIN이 걸려 있습니다. 바꾸려면 새 PIN을 넣고 저장하세요."
     : "PIN 없음 — 링크를 아는 누구나 볼 수 있습니다.";
