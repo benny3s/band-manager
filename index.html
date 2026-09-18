@@ -88,6 +88,29 @@ section[hidden]{display:none}
 .hcell.full{outline:2px solid var(--accent);outline-offset:-2px}
 .hcell.pick{outline:2px solid var(--ink);outline-offset:-2px}
 
+/* ── 달력 ── */
+.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 10px}
+.calhead .ym{font-weight:700;font-size:15.5px;letter-spacing:-.02em}
+.calhead .nav{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  font:inherit;font-size:17px;line-height:1;width:36px;height:36px;border-radius:9px;cursor:pointer}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .dowh{text-align:center;font-size:11.5px;color:var(--muted);padding:2px 0 4px}
+.cal .dowh.sun{color:var(--warn)}
+.cal .d{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  font:inherit;font-size:13.5px;border-radius:9px;padding:10px 0;cursor:pointer;
+  font-variant-numeric:tabular-nums;text-align:center}
+.cal .d.blank{border:0;background:transparent;cursor:default}
+.cal .d.past{color:var(--muted);opacity:.3;cursor:default}
+.cal .d.today{border-color:var(--ink);border-width:2px}
+.cal .d.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.cal .d.has{position:relative}
+.cal .d.has::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
+  width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.cal .d.on.has::after{background:var(--on-accent)}
+.datechip{display:inline-flex;align-items:center;gap:6px}
+.datechip b{font-weight:600}
+.datechip .x{opacity:.65;font-size:15px;line-height:1}
+
 /* ── 메모 ── */
 .notes{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 .noterow{display:flex;align-items:center;gap:9px}
@@ -224,22 +247,26 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
   <section id="view-admin" hidden>
     <div class="card">
       <h2>날짜 후보</h2>
-      <p class="hint">여기 올린 날짜만 멤버 화면에 보입니다.</p>
-      <div class="row" style="margin-bottom:10px">
-        <input type="date" id="dateInput" style="flex:1 1 150px">
-        <button class="btn" id="dateAdd">추가</button>
+      <p class="hint">달력에서 날짜를 눌러 켜고 끕니다. 켠 날짜만 멤버 화면에 보여요.</p>
+
+      <div class="calhead">
+        <button class="nav" id="calPrev" aria-label="이전 달">‹</button>
+        <span class="ym" id="calYM"></span>
+        <button class="nav" id="calNext" aria-label="다음 달">›</button>
       </div>
-      <div class="row" style="margin-bottom:12px">
-        <select id="dowSel" style="flex:0 1 110px">
-          <option value="0">일요일</option><option value="6">토요일</option>
-          <option value="5">금요일</option><option value="4">목요일</option>
-          <option value="3">수요일</option><option value="2">화요일</option>
-          <option value="1">월요일</option>
-        </select>
-        <input type="number" id="dowN" value="6" min="1" max="20" style="flex:0 1 74px">
-        <button class="btn" id="dowAdd">개 한번에 추가</button>
+      <div class="cal" id="cal"></div>
+
+      <div class="row tight" style="margin-top:12px">
+        <button class="btn" id="calDow0">일요일 전부</button>
+        <button class="btn" id="calDow6">토요일 전부</button>
+        <button class="btn ghost" id="calToday">오늘 달로</button>
       </div>
-      <ul class="plain" id="dateList"></ul>
+
+      <div class="spread" style="margin-top:14px">
+        <span class="hint" style="margin:0" id="dateCount"></span>
+        <button class="btn ghost danger" id="calClear" style="flex:0 0 auto">전부 지우기</button>
+      </div>
+      <div class="chips" id="dateChips" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -324,6 +351,9 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const DOW = ["일","월","화","수","목","금","토"];
 
 function dObj(d){ const [y,m,dd] = d.split("-").map(Number); return new Date(y, m-1, dd); }
+function iso(o){
+  return o.getFullYear() + "-" + String(o.getMonth()+1).padStart(2,"0") + "-" + String(o.getDate()).padStart(2,"0");
+}
 function fmtD(d){ const o = dObj(d); return (o.getMonth()+1) + "/" + o.getDate(); }
 function fmtDow(d){ return DOW[dObj(d).getDay()]; }
 function fmtFull(d){ return fmtD(d) + "(" + fmtDow(d) + ")"; }
@@ -677,19 +707,120 @@ function renderResult(){
   });
 }
 
-/* ═══════════════ 관리 ═══════════════ */
-function renderAdmin(){
-  const dl = $("#dateList"); dl.innerHTML = "";
-  if (!ST.config.dates.length) dl.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
-  ST.config.dates.forEach(d => {
-    const li = document.createElement("li");
-    const s = document.createElement("span");
-    s.className = "grow"; s.textContent = fmtFull(d) + "  " + d;
-    const b = document.createElement("button");
-    b.className = "btn ghost danger"; b.textContent = "삭제";
-    b.onclick = () => setDates(ST.config.dates.filter(x => x !== d));
-    li.append(s, b); dl.appendChild(li);
+/* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
+let dsel = new Set();         // 현재 화면의 후보 날짜
+let dateDirty = false;        // 저장 대기 중이면 서버 응답으로 덮어쓰지 않음
+let dateTimer = null;
+let calY = null, calM = null; // 보고 있는 연·월
+
+function syncDsel(){ if (!dateDirty) dsel = new Set(ST.config.dates); }
+
+function toggleDate(d){
+  dsel.has(d) ? dsel.delete(d) : dsel.add(d);
+  dateDirty = true;
+  renderCal(); renderDateChips();
+  setStatus("날짜 변경됨 — 곧 저장됩니다");
+  clearTimeout(dateTimer);
+  dateTimer = setTimeout(saveDates, 900);
+}
+
+async function saveDates(){
+  clearTimeout(dateTimer);
+  const want = Array.from(dsel).sort();
+  setStatus("저장 중…");
+  try {
+    ST = await api({ action:"config_set", dates: want.join(",") });
+    dateDirty = false;
+    applyConfig(); loadMine(); renderAll();
+    setStatus("날짜 후보 " + want.length + "일 저장됨 ✓", "ok");
+  } catch(e){
+    setStatus("날짜 저장 실패 — " + e.message, "err");
+  }
+}
+
+function renderCal(){
+  if (calY === null){ const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); }
+  $("#calYM").textContent = calY + "년 " + (calM + 1) + "월";
+
+  const cal = $("#cal"); cal.innerHTML = "";
+  DOW.forEach((w, i) => {
+    const h = document.createElement("div");
+    h.className = "dowh" + (i === 0 ? " sun" : "");
+    h.textContent = w;
+    cal.appendChild(h);
   });
+
+  const first = new Date(calY, calM, 1);
+  const days  = new Date(calY, calM + 1, 0).getDate();
+  const today = iso(new Date());
+
+  for (let i = 0; i < first.getDay(); i++){
+    const b = document.createElement("div"); b.className = "d blank"; cal.appendChild(b);
+  }
+  for (let n = 1; n <= days; n++){
+    const d = iso(new Date(calY, calM, n));
+    const past = d < today;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "d" + (past ? " past" : "") + (d === today ? " today" : "") +
+                  (dsel.has(d) ? " on" : "");
+    b.textContent = n;
+    if (!past) b.onclick = () => toggleDate(d);
+    else b.disabled = true;
+    cal.appendChild(b);
+  }
+}
+
+function renderDateChips(){
+  const list = Array.from(dsel).sort();
+  $("#dateCount").textContent = list.length ? "후보 " + list.length + "일" : "아직 없음";
+  const box = $("#dateChips"); box.innerHTML = "";
+  list.forEach(d => {
+    const b = document.createElement("button");
+    b.className = "chip datechip"; b.type = "button";
+    b.setAttribute("aria-pressed", "true");
+    b.innerHTML = '<b></b><span class="x">×</span>';
+    b.querySelector("b").textContent = fmtFull(d);
+    b.onclick = () => toggleDate(d);
+    box.appendChild(b);
+  });
+}
+
+function toggleDow(dow){
+  const days  = new Date(calY, calM + 1, 0).getDate();
+  const today = iso(new Date());
+  const hits  = [];
+  for (let n = 1; n <= days; n++){
+    const o = new Date(calY, calM, n), d = iso(o);
+    if (o.getDay() === dow && d >= today) hits.push(d);
+  }
+  if (!hits.length){ setStatus("이 달에 남은 날이 없습니다", "err"); return; }
+  const allOn = hits.every(d => dsel.has(d));
+  hits.forEach(d => allOn ? dsel.delete(d) : dsel.add(d));
+  dateDirty = true;
+  renderCal(); renderDateChips();
+  setStatus("날짜 변경됨 — 곧 저장됩니다");
+  clearTimeout(dateTimer);
+  dateTimer = setTimeout(saveDates, 900);
+}
+
+$("#calPrev").onclick  = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
+$("#calNext").onclick  = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
+$("#calToday").onclick = () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); renderCal(); };
+$("#calDow0").onclick  = () => toggleDow(0);
+$("#calDow6").onclick  = () => toggleDow(6);
+$("#calClear").onclick = () => {
+  if (!dsel.size) return;
+  if (!confirm("날짜 후보를 전부 지웁니다. 응답은 남지만 화면에서 사라집니다. 계속할까요?")) return;
+  dsel.clear(); dateDirty = true;
+  renderCal(); renderDateChips(); saveDates();
+};
+
+/* ═══════════════ 관리 — 멤버 ═══════════════ */
+function renderAdmin(){
+  syncDsel();
+  renderCal();
+  renderDateChips();
 
   const ml = $("#memberList"); ml.innerHTML = "";
   if (!ST.members.length) ml.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
@@ -722,25 +853,6 @@ async function act(params, okMsg){
     setStatus(okMsg || "완료", "ok");
   } catch(e){ setStatus("실패 — " + e.message, "err"); }
 }
-function setDates(list){ act({ action:"config_set", dates: list.join(",") }, "날짜 후보 저장됨"); }
-
-$("#dateAdd").onclick = () => {
-  const v = $("#dateInput").value;
-  if (!v) return;
-  if (ST.config.dates.includes(v)) { setStatus("이미 있는 날짜입니다", "err"); return; }
-  setDates(ST.config.dates.concat(v).sort());
-};
-$("#dowAdd").onclick = () => {
-  const dow = Number($("#dowSel").value), n = Math.max(1, Math.min(20, Number($("#dowN").value) || 1));
-  const t = new Date(); t.setHours(0,0,0,0);
-  const d = new Date(t); d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7));
-  const out = new Set(ST.config.dates);
-  for (let i = 0; i < n; i++){
-    out.add(d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"));
-    d.setDate(d.getDate() + 7);
-  }
-  setDates(Array.from(out).sort());
-};
 $("#memberAdd").onclick = () => {
   const v = $("#memberInput").value.trim();
   if (!v) return;
