@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>밴드매니저 — 합주 일정 취합</title>
-<meta name="description" content="가능한 시간을 칠하면 전원 되는 시간이 자동으로 나옵니다">
+<title>밴드매니저</title>
+<meta name="description" content="합주 일정 취합 · 합주곡 · 진행 이력">
 <style>
 :root{
   --bg:#f7f7f5; --card:#fff; --line:#e4e4e0; --ink:#1b1b19; --muted:#6e6e67;
   --accent:#2f7d4f; --accent-rgb:47,125,79; --soft:#eef4ef; --on-accent:#fff;
-  --warn:#b4472f; --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.04);
+  --warn:#b4472f; --amber:#8a6d1f; --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#141517; --card:#1e2023; --line:#2f3238; --ink:#ededec; --muted:#98988f;
     --accent:#6dc08c; --accent-rgb:109,192,140; --soft:#232a25; --on-accent:#12201a;
-    --warn:#e08b76; --shadow:none;
+    --warn:#e08b76; --amber:#d8b75f; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
   --bg:#141517; --card:#1e2023; --line:#2f3238; --ink:#ededec; --muted:#98988f;
   --accent:#6dc08c; --accent-rgb:109,192,140; --soft:#232a25; --on-accent:#12201a;
-  --warn:#e08b76; --shadow:none;
+  --warn:#e08b76; --amber:#d8b75f; --shadow:none;
 }
 *{box-sizing:border-box}
 html,body{overscroll-behavior-y:none}
@@ -29,39 +29,39 @@ body{
   margin:0; background:var(--bg); color:var(--ink);
   font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",
        "Malgun Gothic",system-ui,sans-serif;
-  padding:0 14px calc(90px + env(safe-area-inset-bottom));
+  padding:0 14px calc(92px + env(safe-area-inset-bottom));
   -webkit-text-size-adjust:100%;
 }
 .wrap{max-width:860px;margin:0 auto}
 
-header{padding:26px 0 14px}
-h1{margin:0;font-size:21px;letter-spacing:-.03em}
-.sub{margin:3px 0 0;color:var(--muted);font-size:13px}
+header{padding:22px 0 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:20px;letter-spacing:-.03em}
+.sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+#bandBar{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:0 1 auto}
 
-/* ── 탭 ── */
-.tabs{display:flex;gap:6px;margin:14px 0 18px;background:var(--card);
-  border:1px solid var(--line);border-radius:12px;padding:4px}
-.tabs button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);
-  font:inherit;font-weight:600;font-size:14px;padding:9px 6px;border-radius:9px;cursor:pointer}
+.tabs{display:flex;gap:3px;margin:12px 0 16px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto}
+.tabs button{flex:1 0 auto;appearance:none;border:0;background:transparent;color:var(--muted);
+  font:inherit;font-weight:600;font-size:13.5px;padding:9px 10px;border-radius:9px;
+  cursor:pointer;white-space:nowrap}
 .tabs button[aria-selected="true"]{background:var(--soft);color:var(--accent)}
 
-section[hidden]{display:none}
+section[hidden],[hidden]{display:none}
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
   padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
 .card h2{margin:0 0 4px;font-size:15px;letter-spacing:-.02em}
 .card .hint{margin:0 0 12px;color:var(--muted);font-size:12.5px}
-.card h2+.grid-wrap,.card h2+.chips{margin-top:12px}
 
-/* ── 칩 ── */
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{appearance:none;font:inherit;font-size:13.5px;padding:7px 13px;border-radius:999px;
   border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
   color:var(--on-accent);font-weight:600}
+.chip.sm{font-size:12.5px;padding:5px 11px}
 .chip.done::after{content:" ✓";opacity:.7}
 
-/* ── 그리드 ── */
+/* ── 시간 격자 ── */
 .grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
   border:1px solid var(--line);border-radius:11px;background:var(--bg)}
 .grid{display:grid;min-width:max-content;user-select:none;-webkit-user-select:none}
@@ -72,18 +72,15 @@ section[hidden]{display:none}
 .grid .hh{position:sticky;left:0;z-index:2;background:var(--card);color:var(--muted);
   font-variant-numeric:tabular-nums;cursor:pointer;min-width:46px}
 .grid .dh{background:var(--card);font-weight:700;font-size:11.5px;cursor:pointer;
-  position:sticky;top:0;z-index:1;flex-direction:column;gap:0;min-height:42px}
+  flex-direction:column;min-height:42px}
 .grid .dh .dow{font-weight:500;color:var(--muted);font-size:10.5px}
 .grid .dh.sun .dow{color:var(--warn)}
-.grid .corner{position:sticky;left:0;top:0;z-index:3;background:var(--card)}
+.grid .corner{position:sticky;left:0;z-index:3;background:var(--card)}
 .slot{background:var(--card);touch-action:none;cursor:pointer;min-width:62px}
 .slot.on{background:var(--accent)}
 .slot.alt{background:var(--soft)}
 .slot.alt.on{background:var(--accent)}
-
-/* 결과 히트맵 */
-.hcell{font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;
-  color:var(--ink);background:var(--card)}
+.hcell{font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--card)}
 .hcell.z{color:var(--muted);opacity:.45;font-weight:500}
 .hcell.full{outline:2px solid var(--accent);outline-offset:-2px}
 .hcell.pick{outline:2px solid var(--ink);outline-offset:-2px}
@@ -104,47 +101,46 @@ section[hidden]{display:none}
 .cal .d.past{color:var(--muted);opacity:.3;cursor:default}
 .cal .d.today{border-color:var(--ink);border-width:2px}
 .cal .d.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
-.cal .d.has{position:relative}
-.cal .d.has::after{content:"";position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
-  width:4px;height:4px;border-radius:50%;background:var(--accent)}
-.cal .d.on.has::after{background:var(--on-accent)}
 .datechip{display:inline-flex;align-items:center;gap:6px}
-.datechip b{font-weight:600}
 .datechip .x{opacity:.65;font-size:15px;line-height:1}
 
-details.rng{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
-details.rng>summary{list-style:none;cursor:pointer;padding:11px 14px;font-size:13.5px;
+details.fold{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+details.fold>summary{list-style:none;cursor:pointer;padding:11px 14px;font-size:13.5px;
   font-weight:600;color:var(--muted);display:flex;align-items:center;gap:7px}
-details.rng>summary::-webkit-details-marker{display:none}
-details.rng>summary::before{content:"＋";font-size:14px;color:var(--accent)}
-details.rng[open]>summary::before{content:"−"}
-details.rng[open]>summary{color:var(--ink);border-bottom:1px solid var(--line)}
-details.rng .body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:10px}
-details.rng .dash{color:var(--muted);flex:0 0 auto}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"＋";font-size:14px;color:var(--accent)}
+details.fold[open]>summary::before{content:"−"}
+details.fold[open]>summary{color:var(--ink);border-bottom:1px solid var(--line)}
+details.fold .body{padding:13px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.dash{color:var(--muted);flex:0 0 auto}
 
 /* ── 메모 ── */
 .notes{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 .noterow{display:flex;align-items:center;gap:9px}
 .noterow .nd{flex:0 0 76px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .noterow .nd.none{color:var(--warn);font-weight:600}
-input[type=text],input[type=date],input[type=number],select{
+
+input[type=text],input[type=date],input[type=number],input[type=time],select,textarea{
   font:inherit;font-size:14px;padding:8px 11px;border-radius:9px;
   border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
-input::placeholder{color:var(--muted);opacity:.7}
+textarea{resize:vertical;min-height:62px;line-height:1.5}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+label.fld{display:block}
+label.fld>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
 
-/* ── 버튼 ── */
 .btn{appearance:none;font:inherit;font-size:14px;font-weight:600;padding:9px 15px;
   border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn.ghost{border:0;background:transparent;color:var(--muted);padding:6px 8px;font-weight:500;font-size:13px}
 .btn.danger{color:var(--warn)}
+.btn.sm{font-size:13px;padding:7px 12px}
 .btn:disabled{opacity:.45;cursor:default}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .row.tight{gap:6px}
+.row.nowrap{flex-wrap:nowrap}
 .spread{display:flex;justify-content:space-between;align-items:center;gap:10px}
 
-/* ── 상태바 ── */
-.statusbar{position:fixed;left:0;right:0;bottom:0;z-index:20;
+.statusbar{position:fixed;left:0;right:0;bottom:0;z-index:30;
   background:color-mix(in srgb,var(--card) 92%,transparent);
   backdrop-filter:blur(10px);border-top:1px solid var(--line);
   padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
@@ -154,13 +150,14 @@ input::placeholder{color:var(--muted);opacity:.7}
 .st.ok{color:var(--accent)}
 .st.err{color:var(--warn)}
 
-/* ── 기타 ── */
 .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:9px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;
   border:1px solid var(--line);vertical-align:-2px;margin-right:5px}
 .pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;
-  background:var(--soft);color:var(--accent);font-weight:600}
+  background:var(--soft);color:var(--accent);font-weight:600;white-space:nowrap}
 .pill.grey{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.pill.warn{background:transparent;color:var(--warn);border:1px solid currentColor}
+.pill.amber{background:transparent;color:var(--amber);border:1px solid currentColor}
 ul.plain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 ul.plain li{display:flex;align-items:center;gap:8px;font-size:14px}
 ul.plain li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -174,23 +171,51 @@ ul.plain li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .detail p{margin:0 0 9px}
 .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:22px 6px}
 footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
+
+/* ── 곡 / 이력 ── */
+.sec{margin-bottom:18px}
+.sechead{display:flex;align-items:baseline;gap:8px;margin:0 2px 9px}
+.sechead h3{margin:0;font-size:14px;letter-spacing:-.02em}
+.sechead .n{color:var(--muted);font-size:12px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:13px 14px;box-shadow:var(--shadow);margin-bottom:9px}
+.item .ttl{font-weight:700;font-size:15.5px;letter-spacing:-.02em;line-height:1.35}
+.item .meta{color:var(--muted);font-size:12.5px;margin-top:2px}
+.item .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.item .body{margin-top:10px;font-size:13.5px;white-space:pre-wrap;line-height:1.55}
+.item .body .k{color:var(--muted);font-size:12px;display:block;margin-bottom:1px}
+.item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px;
+  border-top:1px solid var(--line);padding-top:10px}
+a.lnk{display:inline-flex;align-items:center;gap:5px;text-decoration:none;
+  font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:999px;
+  border:1px solid var(--line);color:var(--accent);background:var(--bg)}
+a.lnk::before{content:"▶";font-size:9px}
+.votebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;
+  border-top:1px solid var(--line);padding-top:10px}
+.votebar .tally{color:var(--muted);font-size:12.5px}
+.songpick{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <header>
-    <h1 id="title">합주 일정 취합</h1>
-    <p class="sub" id="subtitle">가능한 시간을 손가락으로 쭉 칠해주세요</p>
+    <div style="min-width:0">
+      <h1 id="title">밴드매니저</h1>
+      <p class="sub" id="subtitle">불러오는 중…</p>
+    </div>
+    <div class="chips" id="bandBar"></div>
   </header>
 
   <div class="tabs" role="tablist">
-    <button role="tab" id="tab-answer" aria-selected="true">응답하기</button>
+    <button role="tab" id="tab-answer" aria-selected="true">일정</button>
     <button role="tab" id="tab-result" aria-selected="false">결과</button>
-    <button role="tab" id="tab-admin" aria-selected="false">관리</button>
+    <button role="tab" id="tab-song"   aria-selected="false">곡</button>
+    <button role="tab" id="tab-hist"   aria-selected="false">이력</button>
+    <button role="tab" id="tab-admin"  aria-selected="false">관리</button>
   </div>
 
-  <!-- ══════════ 응답 ══════════ -->
+  <!-- ══════════ 일정 ══════════ -->
   <section id="view-answer">
     <div class="card">
       <h2>누구세요?</h2>
@@ -254,27 +279,121 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
     </div>
   </section>
 
+  <!-- ══════════ 곡 ══════════ -->
+  <section id="view-song" hidden>
+    <div class="card">
+      <div class="spread">
+        <div style="min-width:0">
+          <h2>합주곡</h2>
+          <p class="hint" style="margin-bottom:0" id="songSummary"></p>
+        </div>
+        <button class="btn primary sm" id="songNew" style="flex:0 0 auto">곡 추가</button>
+      </div>
+      <div class="chips" id="voterChips" style="margin-top:12px"></div>
+      <p class="hint" id="voterHint" style="margin:8px 0 0">후보곡에 투표하려면 이름을 골라주세요.</p>
+    </div>
+
+    <div class="card" id="songForm" hidden>
+      <h2 id="songFormTitle">곡 추가</h2>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        <label class="fld"><span>곡 제목</span><input type="text" id="f_title" placeholder="필수"></label>
+        <div class="row nowrap">
+          <label class="fld" style="flex:1 1 0"><span>아티스트</span><input type="text" id="f_artist"></label>
+          <label class="fld" style="flex:1 1 0"><span>키</span><input type="text" id="f_key" placeholder="원곡 / 원곡+4키"></label>
+        </div>
+        <div class="row nowrap">
+          <label class="fld" style="flex:1 1 0"><span>선곡자</span><input type="text" id="f_picker"></label>
+          <label class="fld" style="flex:1 1 0"><span>상태</span>
+            <select id="f_status">
+              <option>후보</option><option>연습중</option><option>완료</option><option>보류</option>
+            </select>
+          </label>
+        </div>
+        <label class="fld"><span>링크 — 한 줄에 하나. <code>라벨|주소</code> 로 이름을 붙일 수 있어요</span>
+          <textarea id="f_links" placeholder="라이브|https://youtu.be/...&#10;https://youtu.be/..."></textarea></label>
+        <div class="row nowrap">
+          <label class="fld" style="flex:2 1 0"><span>파트</span><input type="text" id="f_parts" placeholder="리드: 양관우 / 리듬: 송명재"></label>
+          <label class="fld" style="flex:1 1 0"><span>튜닝</span><input type="text" id="f_tuning" placeholder="DROP D"></label>
+        </div>
+        <label class="fld"><span>메모</span><textarea id="f_memo"></textarea></label>
+        <div class="row">
+          <button class="btn primary" id="songSave">저장</button>
+          <button class="btn ghost" id="songCancel">취소</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost danger" id="songDelete" hidden>삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="songList"></div>
+  </section>
+
+  <!-- ══════════ 이력 ══════════ -->
+  <section id="view-hist" hidden>
+    <div class="card">
+      <div class="spread">
+        <div style="min-width:0">
+          <h2>합주 이력</h2>
+          <p class="hint" style="margin-bottom:0" id="histSummary"></p>
+        </div>
+        <button class="btn primary sm" id="histNew" style="flex:0 0 auto">회차 추가</button>
+      </div>
+    </div>
+
+    <div class="card" id="histForm" hidden>
+      <h2 id="histFormTitle">회차 추가</h2>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+        <div class="row nowrap">
+          <label class="fld" style="flex:1 1 0"><span>날짜</span><input type="date" id="h_date"></label>
+          <label class="fld" style="flex:0 1 96px"><span>시작</span><input type="time" id="h_from" step="300"></label>
+          <label class="fld" style="flex:0 1 96px"><span>종료</span><input type="time" id="h_to" step="300"></label>
+        </div>
+        <div class="row nowrap">
+          <label class="fld" style="flex:2 1 0"><span>합주실</span><input type="text" id="h_place" placeholder="그루브 사당점"></label>
+          <label class="fld" style="flex:1 1 0"><span>룸</span><input type="text" id="h_room" placeholder="C룸"></label>
+          <label class="fld" style="flex:1 1 0"><span>상태</span>
+            <select id="h_status"><option>예정</option><option>완료</option><option>취소</option></select>
+          </label>
+        </div>
+        <div><span style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">불참</span>
+          <div class="chips" id="h_absent"></div></div>
+        <div>
+          <div class="spread" style="margin-bottom:5px">
+            <span style="font-size:12px;color:var(--muted)">합주한 곡</span>
+            <button class="btn ghost" id="h_copyPrev" style="padding:2px 6px">직전 회차 그대로</button>
+          </div>
+          <div class="songpick" id="h_songs"></div>
+        </div>
+        <label class="fld"><span>메모</span><input type="text" id="h_memo"></label>
+        <div class="row">
+          <button class="btn primary" id="histSave">저장</button>
+          <button class="btn ghost" id="histCancel">취소</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost danger" id="histDelete" hidden>삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="histList"></div>
+  </section>
+
   <!-- ══════════ 관리 ══════════ -->
   <section id="view-admin" hidden>
     <div class="card">
       <h2>날짜 후보</h2>
-      <p class="hint">달력에서 날짜를 누르면 켜지고, <b>누른 채 쭉 끌면</b> 여러 날이 한 번에 켜져요.
-        켠 날짜만 멤버 화면에 보입니다.</p>
-
+      <p class="hint">달력에서 날짜를 누르면 켜지고, <b>누른 채 쭉 끌면</b> 여러 날이 한 번에 켜져요.</p>
       <div class="calhead">
         <button class="nav" id="calPrev" aria-label="이전 달">‹</button>
         <span class="ym" id="calYM"></span>
         <button class="nav" id="calNext" aria-label="다음 달">›</button>
       </div>
       <div class="cal" id="cal"></div>
-
       <div class="row tight" style="margin-top:12px">
         <button class="btn" id="calDow0">일요일 전부</button>
         <button class="btn" id="calDow6">토요일 전부</button>
         <button class="btn ghost" id="calToday">오늘 달로</button>
       </div>
-
-      <details class="rng">
+      <details class="fold">
         <summary>기간으로 한 번에 (여러 달 걸쳐서)</summary>
         <div class="body">
           <div class="row tight">
@@ -292,7 +411,6 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
           </div>
         </div>
       </details>
-
       <div class="spread" style="margin-top:14px">
         <span class="hint" style="margin:0" id="dateCount"></span>
         <button class="btn ghost danger" id="calClear" style="flex:0 0 auto">전부 지우기</button>
@@ -302,12 +420,22 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
 
     <div class="card">
       <h2>멤버</h2>
-      <p class="hint">인원 제한 없음. 이름을 고치면 응답도 따라갑니다.</p>
+      <p class="hint">이 밴드의 멤버. 인원 제한 없음.</p>
       <div class="row" style="margin-bottom:12px">
         <input type="text" id="memberInput" placeholder="이름" style="flex:1 1 150px">
         <button class="btn" id="memberAdd">추가</button>
       </div>
       <ul class="plain" id="memberList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>밴드</h2>
+      <p class="hint">밴드마다 일정·멤버·곡·이력이 따로 관리됩니다.</p>
+      <div class="row" style="margin-bottom:12px">
+        <input type="text" id="bandInput" placeholder="밴드 이름" style="flex:1 1 150px">
+        <button class="btn" id="bandAdd">추가</button>
+      </div>
+      <ul class="plain" id="bandList"></ul>
     </div>
 
     <div class="card">
@@ -328,7 +456,7 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
     <div class="card">
       <h2>기타</h2>
       <div class="row" style="margin-top:10px">
-        <button class="btn" id="copyLink">멤버용 링크 복사</button>
+        <button class="btn" id="copyLink">링크 복사</button>
         <button class="btn danger" id="resetBtn">응답 전체 초기화</button>
       </div>
     </div>
@@ -361,7 +489,7 @@ function api(params){
       s.remove(); clearTimeout(t);
     };
     const t = setTimeout(() => { done(); reject(new Error("응답이 없습니다")); }, 30000);
-    window[cb] = data => { done(); data && data.ok === false ? reject(new Error(data.error || "오류")) : resolve(data); };
+    window[cb] = data => { done(); (data && data.ok === false) ? reject(new Error(data.error || "오류")) : resolve(data); };
     s.onerror = () => { done(); reject(new Error("네트워크 오류")); };
     s.src = ENDPOINT + "?" + q.toString();
     document.head.appendChild(s);
@@ -369,28 +497,42 @@ function api(params){
 }
 
 /* ═══════════════ 상태 ═══════════════ */
-let ST  = { config:{ dates:[], hourStart:9, hourEnd:22, title:"" }, members:[], hours:{}, notes:{} };
-let me  = localStorage.getItem("bm_name") || "";
-let sel = new Set();          // "YYYY-MM-DD|H"
-let noteDraft = {};
+let ST = { bands:[], members:{}, config:{}, hours:{}, notes:{}, songs:[], hist:[], votes:{} };
+let B  = "";                  // 현재 밴드 id
+let me = "";                  // 현재 밴드에서 내 이름
+let sel = new Set(), noteDraft = {};
 let dirty = false, saving = false, saveTimer = null;
-let thresh = null;            // 결과 필터 기준 인원 (null = 전원 자동 추종)
-let pick = null;              // 결과에서 선택한 칸
+let thresh = null, pick = null;
+let view = "answer";
 
 const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const DOW = ["일","월","화","수","목","금","토"];
 
 function dObj(d){ const [y,m,dd] = d.split("-").map(Number); return new Date(y, m-1, dd); }
-function iso(o){
-  return o.getFullYear() + "-" + String(o.getMonth()+1).padStart(2,"0") + "-" + String(o.getDate()).padStart(2,"0");
-}
+function iso(o){ return o.getFullYear() + "-" + String(o.getMonth()+1).padStart(2,"0") + "-" + String(o.getDate()).padStart(2,"0"); }
 function fmtD(d){ const o = dObj(d); return (o.getMonth()+1) + "/" + o.getDate(); }
 function fmtDow(d){ return DOW[dObj(d).getDay()]; }
 function fmtFull(d){ return fmtD(d) + "(" + fmtDow(d) + ")"; }
+function fmtLong(d){ const o = dObj(d); return o.getFullYear() + "." + (o.getMonth()+1) + "." + o.getDate() + " (" + DOW[o.getDay()] + ")"; }
 function hh(h){ return String(h).padStart(2,"0") + ":00"; }
-function hours(){ const c = ST.config, a = []; for(let h=c.hourStart; h<c.hourEnd; h++) a.push(h); return a; }
 function key(d,h){ return d + "|" + h; }
+/** 받침에 따라 "-로 / -으로" 를 붙인다 (완료로, 연습중으로) */
+function ro(w){
+  const c = w.charCodeAt(w.length - 1);
+  if (c < 0xAC00 || c > 0xD7A3) return w + "로";
+  const jong = (c - 0xAC00) % 28;
+  return w + (jong === 0 || jong === 8 ? "로" : "으로");
+}
+
+function cfg(){ return ST.config[B] || { dates:[], hourStart:9, hourEnd:22, title:"" }; }
+function members(){ return ST.members[B] || []; }
+function hoursOf(){ return ST.hours[B] || {}; }
+function notesOf(){ return ST.notes[B] || {}; }
+function songsOf(st){ return ST.songs.filter(s => s.band === B && (!st || s.status === st)); }
+function histOf(){ return ST.hist.filter(h => h.band === B); }
+function songById(id){ return ST.songs.find(s => s.id === id); }
+function hours(){ const c = cfg(), a = []; for (let h = c.hourStart; h < c.hourEnd; h++) a.push(h); return a; }
 
 function setStatus(msg, cls){
   const el = $("#status");
@@ -403,90 +545,123 @@ async function load(){
   setStatus("불러오는 중…");
   try {
     ST = await api({ action:"load" });
-    if (me && !ST.members.includes(me)) me = "";
-    applyConfig();
-    renderAll();
+    if (!ST.bands.length) { setStatus("밴드가 없습니다", "err"); return; }
+    const want = localStorage.getItem("bm_band");
+    B = ST.bands.some(b => b.id === want) ? want : ST.bands[0].id;
+    pickBand(B, true);
     setStatus("최신 상태", "ok");
   } catch(e){
     setStatus("불러오기 실패 — " + e.message, "err");
   }
 }
 
+function pickBand(id, quiet){
+  B = id;
+  localStorage.setItem("bm_band", B);
+  const saved = localStorage.getItem("bm_name:" + B) || "";
+  me = members().includes(saved) ? saved : "";
+  thresh = null; pick = null;
+  dsel = new Set(cfg().dates); dateDirty = false;
+  loadMine();
+  applyConfig();
+  renderAll();
+  if (!quiet) setStatus((ST.bands.find(b => b.id === B) || {}).name + " 로 전환", "ok");
+}
+
 function applyConfig(){
-  const t = ST.config.title || "합주 일정 취합";
+  const band = ST.bands.find(b => b.id === B) || { name: "밴드매니저" };
+  const t = cfg().title || band.name;
   $("#title").textContent = t;
   document.title = t + " — 밴드매니저";
-  $("#hStart").value = ST.config.hourStart;
-  $("#hEnd").value   = ST.config.hourEnd;
-  $("#titleInput").value = ST.config.title || "";
+  $("#hStart").value = cfg().hourStart;
+  $("#hEnd").value   = cfg().hourEnd;
+  $("#titleInput").value = cfg().title || "";
 }
 
 function loadMine(){
-  sel = new Set();
-  noteDraft = {};
+  sel = new Set(); noteDraft = {};
   if (!me) return;
-  const mine = ST.hours[me] || {};
-  for (const d of ST.config.dates) (mine[d] || []).forEach(h => sel.add(key(d,h)));
-  const mn = ST.notes[me] || {};
-  for (const d of ST.config.dates) if (mn[d]) noteDraft[d] = mn[d];
+  const mine = hoursOf()[me] || {};
+  for (const d of cfg().dates) (mine[d] || []).forEach(h => sel.add(key(d,h)));
+  const mn = (notesOf()[me] || {});
+  for (const d of cfg().dates) if (mn[d]) noteDraft[d] = mn[d];
 }
 
 function answered(name){
-  const h = ST.hours[name];
+  const h = hoursOf()[name];
   if (!h) return false;
-  return ST.config.dates.some(d => Array.isArray(h[d]));
+  return cfg().dates.some(d => Array.isArray(h[d]));
 }
 
 /* ═══════════════ 렌더 ═══════════════ */
 function renderAll(){
+  renderBands();
   renderMembers();
   renderGrid();
   renderNotes();
   renderResult();
+  renderSongs();
+  renderHist();
   renderAdmin();
-  const n = ST.config.dates.length;
-  $("#subtitle").textContent = n
-    ? "가능한 시간을 손가락으로 쭉 칠해주세요 · 후보 " + n + "일"
-    : "아직 날짜 후보가 없습니다. 관리자에게 물어보세요.";
+  const n = cfg().dates.length;
+  $("#subtitle").textContent = n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
+                                 : "날짜 후보가 아직 없습니다";
   $("#foot").textContent = "밴드매니저 · benny3s.github.io";
+  show(view);
+}
+
+function renderBands(){
+  const box = $("#bandBar"); box.innerHTML = "";
+  if (ST.bands.length < 2 && !ST.bands.length) return;
+  ST.bands.forEach(b => {
+    const el = document.createElement("button");
+    el.className = "chip sm"; el.type = "button"; el.textContent = b.name;
+    el.setAttribute("aria-pressed", String(b.id === B));
+    el.onclick = () => {
+      if (dirty && !confirm("저장 안 된 변경이 있습니다. 밴드를 바꿀까요?")) return;
+      dirty = false; pickBand(b.id);
+    };
+    box.appendChild(el);
+  });
 }
 
 function renderMembers(){
-  const box = $("#memberChips");
-  box.innerHTML = "";
-  if (!ST.members.length){
+  const box = $("#memberChips"); box.innerHTML = "";
+  if (!members().length){
     box.innerHTML = '<span class="empty" style="padding:6px">멤버가 없습니다. 관리 화면에서 추가하세요.</span>';
   }
-  ST.members.forEach(name => {
+  members().forEach(name => {
     const b = document.createElement("button");
     b.className = "chip" + (answered(name) ? " done" : "");
-    b.type = "button";
-    b.textContent = name;
+    b.type = "button"; b.textContent = name;
     b.setAttribute("aria-pressed", String(name === me));
     b.onclick = () => {
       if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
-      me = name;
-      localStorage.setItem("bm_name", me);
-      dirty = false;
-      loadMine();
-      renderMembers(); renderGrid(); renderNotes();
+      me = name; localStorage.setItem("bm_name:" + B, me);
+      dirty = false; loadMine();
+      renderMembers(); renderGrid(); renderNotes(); renderSongs();
       setStatus(me + " 님으로 응답 중", "ok");
-      $("#saveBtn").hidden = false;
     };
     box.appendChild(b);
   });
-  const has = !!me && ST.config.dates.length > 0;
+  const has = !!me && cfg().dates.length > 0;
   $("#answerCard").hidden = !has;
   $("#noteCard").hidden   = !has;
-  $("#saveBtn").hidden    = !has;
+  $("#saveBtn").hidden    = !(view === "answer" && has);
+}
+
+function cell(cls, text){
+  const el = document.createElement("div");
+  el.className = cls;
+  if (text) el.textContent = text;
+  return el;
 }
 
 function renderGrid(){
-  const g = $("#grid"), ds = ST.config.dates, hs = hours();
+  const g = $("#grid"), ds = cfg().dates, hs = hours();
   g.innerHTML = "";
   if (!ds.length || !me) return;
   g.style.gridTemplateColumns = "46px repeat(" + ds.length + ", minmax(62px, 1fr))";
-
   g.appendChild(cell("gc hh corner", "시"));
   ds.forEach(d => {
     const c = cell("gc dh" + (dObj(d).getDay() === 0 ? " sun" : ""), "");
@@ -498,7 +673,6 @@ function renderGrid(){
     };
     g.appendChild(c);
   });
-
   hs.forEach((h, i) => {
     const lab = cell("gc hh", String(h));
     lab.onclick = () => {
@@ -515,19 +689,9 @@ function renderGrid(){
   });
   paintGrid();
 }
+function paintGrid(){ $$("#grid .slot").forEach(c => c.classList.toggle("on", sel.has(c.dataset.k))); }
 
-function cell(cls, text){
-  const el = document.createElement("div");
-  el.className = cls;
-  if (text) el.textContent = text;
-  return el;
-}
-
-function paintGrid(){
-  $$("#grid .slot").forEach(c => c.classList.toggle("on", sel.has(c.dataset.k)));
-}
-
-/* ── 드래그 칠하기 ── */
+/* 시간 격자 드래그 */
 (function(){
   const g = $("#grid");
   let mode = null;
@@ -535,8 +699,8 @@ function paintGrid(){
   const apply = c => {
     if (!c) return;
     const k = c.dataset.k;
-    if (mode === "on")  { if (!sel.has(k)) { sel.add(k); c.classList.add("on"); } }
-    else                { if (sel.has(k))  { sel.delete(k); c.classList.remove("on"); } }
+    if (mode === "on"){ if (!sel.has(k)){ sel.add(k); c.classList.add("on"); } }
+    else              { if (sel.has(k)) { sel.delete(k); c.classList.remove("on"); } }
   };
   g.addEventListener("pointerdown", e => {
     const c = e.target.closest(".slot");
@@ -556,7 +720,7 @@ function paintGrid(){
 function renderNotes(){
   const box = $("#notes"); box.innerHTML = "";
   if (!me) return;
-  ST.config.dates.forEach(d => {
+  cfg().dates.forEach(d => {
     const none = hours().every(h => !sel.has(key(d,h)));
     const row = document.createElement("div");
     row.className = "noterow";
@@ -573,12 +737,12 @@ function renderNotes(){
   });
 }
 
-/* ═══════════════ 저장 ═══════════════ */
+/* ═══════════════ 응답 저장 ═══════════════ */
 function touch(){
   dirty = true;
   setStatus("변경됨 — 곧 저장됩니다");
   $$("#notes .nd").forEach((el, i) => {
-    const d = ST.config.dates[i];
+    const d = cfg().dates[i];
     el.classList.toggle("none", hours().every(h => !sel.has(key(d,h))));
   });
   clearTimeout(saveTimer);
@@ -591,12 +755,12 @@ async function save(){
   saving = true;
   setStatus("저장 중…");
   const payload = { hours:{}, notes:{} };
-  ST.config.dates.forEach(d => {
+  cfg().dates.forEach(d => {
     payload.hours[d] = hours().filter(h => sel.has(key(d,h)));
     payload.notes[d] = noteDraft[d] || "";
   });
   try {
-    ST = await api({ action:"save", name: me, payload: JSON.stringify(payload) });
+    ST = await api({ action:"save", band:B, name:me, payload: JSON.stringify(payload) });
     dirty = false;
     setStatus("저장됨 ✓ — " + me, "ok");
     renderMembers(); renderResult();
@@ -606,19 +770,16 @@ async function save(){
 }
 
 /* ═══════════════ 결과 ═══════════════ */
-function responders(){ return ST.members.filter(answered); }
-
-function availAt(d, h){
-  return responders().filter(n => (ST.hours[n]?.[d] || []).includes(h));
-}
+function responders(){ return members().filter(answered); }
+function availAt(d, h){ return responders().filter(n => ((hoursOf()[n] || {})[d] || []).includes(h)); }
 
 function renderResult(){
-  const rs = responders(), ds = ST.config.dates, hs = hours();
-  $("#respSummary").textContent =
-    ST.members.length ? rs.length + " / " + ST.members.length + "명 응답" : "멤버 없음";
+  const rs = responders(), ds = cfg().dates, hs = hours();
+  $("#respSummary").textContent = members().length
+    ? rs.length + " / " + members().length + "명 응답" : "멤버 없음";
 
   const rc = $("#respChips"); rc.innerHTML = "";
-  ST.members.forEach(n => {
+  members().forEach(n => {
     const s = document.createElement("span");
     s.className = "chip" + (answered(n) ? " done" : "");
     s.style.cursor = "default";
@@ -627,7 +788,6 @@ function renderResult(){
     rc.appendChild(s);
   });
 
-  // thresh 가 null 이면 '전원'을 계속 따라갑니다 (응답자가 늘어도 기준이 안 낡음)
   const T = (thresh === null || thresh > rs.length) ? (rs.length || 1) : thresh;
 
   const tc = $("#threshChips"); tc.innerHTML = "";
@@ -640,15 +800,13 @@ function renderResult(){
     tc.appendChild(b);
   }
 
-  /* 추천 블록 */
   const best = $("#best"); best.innerHTML = "";
   const blocks = [];
   ds.forEach(d => {
     let run = [];
     const flush = () => {
       if (run.length >= 2){
-        // 구간 내내 가능한 사람만 (교집합)
-        const who = rs.filter(n => run.every(h => (ST.hours[n]?.[d] || []).includes(h)));
+        const who = rs.filter(n => run.every(h => ((hoursOf()[n] || {})[d] || []).includes(h)));
         blocks.push({ d, from: run[0], to: run[run.length-1] + 1, len: run.length, who });
       }
       run = [];
@@ -660,25 +818,21 @@ function renderResult(){
 
   if (!blocks.length){
     best.innerHTML = '<div class="empty">' +
-      (rs.length ? T + "명 이상 되는 연속 2시간 구간이 없습니다." : "아직 응답이 없습니다.") +
-      '</div>';
+      (rs.length ? T + "명 이상 되는 연속 2시간 구간이 없습니다." : "아직 응답이 없습니다.") + '</div>';
   } else {
     blocks.slice(0, 8).forEach((b, i) => {
       const el = document.createElement("div");
       el.className = "b" + (i === 0 ? " top" : "");
       el.innerHTML = '<div class="bt"></div><div class="bs"></div>';
-      el.querySelector(".bt").textContent =
-        fmtFull(b.d) + " " + hh(b.from) + "–" + hh(b.to);
+      el.querySelector(".bt").textContent = fmtFull(b.d) + " " + hh(b.from) + "–" + hh(b.to);
       el.querySelector(".bs").textContent =
         b.who.length + "명 내내 가능 · " + b.len + "시간 · " + (b.who.join(", ") || "—");
       best.appendChild(el);
     });
   }
 
-  /* 히트맵 */
   const g = $("#heat"); g.innerHTML = "";
-  if (!ds.length){ g.innerHTML = ""; $("#heatDetail").innerHTML = ""; }
-  else {
+  if (ds.length){
     g.style.gridTemplateColumns = "46px repeat(" + ds.length + ", minmax(62px, 1fr))";
     g.appendChild(cell("gc hh corner", "시"));
     ds.forEach(d => {
@@ -701,50 +855,415 @@ function renderResult(){
     });
   }
 
-  /* 칸 상세 */
   const det = $("#heatDetail");
   if (pick && ds.includes(pick.d)){
     const ok = availAt(pick.d, pick.h);
     const no = rs.filter(n => !ok.includes(n));
-    const notes = no.map(n => ST.notes[n]?.[pick.d] ? n + ": " + ST.notes[n][pick.d] : null).filter(Boolean);
+    const nts = no.map(n => (notesOf()[n] || {})[pick.d] ? n + ": " + notesOf()[n][pick.d] : null).filter(Boolean);
     det.className = "detail";
     det.innerHTML =
-      '<div class="lbl"></div><p class="t" style="font-weight:700"></p>' +
+      '<p class="t" style="font-weight:700"></p>' +
       '<div class="lbl">가능</div><p class="a"></p>' +
       '<div class="lbl">불가</div><p class="b"></p>' +
-      (notes.length ? '<div class="lbl">사유</div><p class="c"></p>' : "");
-    det.querySelector(".t").textContent =
-      fmtFull(pick.d) + " " + hh(pick.h) + "–" + hh(pick.h + 1);
+      (nts.length ? '<div class="lbl">사유</div><p class="c"></p>' : "");
+    det.querySelector(".t").textContent = fmtFull(pick.d) + " " + hh(pick.h) + "–" + hh(pick.h + 1);
     det.querySelector(".a").textContent = ok.length ? ok.join(", ") : "없음";
     det.querySelector(".b").textContent = no.length ? no.join(", ") : "없음";
-    if (notes.length) det.querySelector(".c").textContent = notes.join(" / ");
+    if (nts.length) det.querySelector(".c").textContent = nts.join(" / ");
   } else { det.className = ""; det.innerHTML = ""; }
 
-  /* 메모 모음 */
   const nd = [];
-  rs.forEach(n => {
-    ds.forEach(d => { if (ST.notes[n]?.[d]) nd.push({ n, d, t: ST.notes[n][d] }); });
-  });
+  rs.forEach(n => ds.forEach(d => { if ((notesOf()[n] || {})[d]) nd.push({ n, d, t: notesOf()[n][d] }); }));
   $("#noteDigest").hidden = !nd.length;
   const nl = $("#noteList"); nl.innerHTML = "";
   nd.sort((a,b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0).forEach(x => {
     const p = document.createElement("p");
     p.style.margin = "0 0 7px"; p.style.fontSize = "13.5px";
-    p.innerHTML = '<span class="pill grey"></span> <b></b> <span></span>';
+    p.innerHTML = '<span class="pill grey"></span> <b></b> <span class="tx"></span>';
     p.querySelector(".pill").textContent = fmtFull(x.d);
     p.querySelector("b").textContent = x.n;
-    p.querySelector("span:last-child").textContent = x.t;
+    p.querySelector(".tx").textContent = x.t;
     nl.appendChild(p);
   });
 }
 
-/* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
-let dsel = new Set();         // 현재 화면의 후보 날짜
-let dateDirty = false;        // 저장 대기 중이면 서버 응답으로 덮어쓰지 않음
-let dateTimer = null;
-let calY = null, calM = null; // 보고 있는 연·월
+/* ═══════════════ 곡 ═══════════════ */
+const STATUS_ORDER = ["연습중", "후보", "완료", "보류"];
+const NEXT_STATUS = {
+  "후보":   ["연습중", "보류"],
+  "연습중": ["완료", "보류"],
+  "완료":   ["연습중"],
+  "보류":   ["후보", "연습중"]
+};
 
-function syncDsel(){ if (!dateDirty) dsel = new Set(ST.config.dates); }
+function parseLinks(s){
+  return String(s || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.indexOf("|");
+    const o = i > 0 ? { label: l.slice(0,i).trim(), url: l.slice(i+1).trim() }
+                    : { label: "영상", url: l };
+    return o;
+  }).filter(x => /^https?:\/\//.test(x.url));
+}
+
+/** 곡별 합주 횟수와 첫 합주일 (취소 회차 제외) */
+function songStats(){
+  const out = {};
+  histOf().filter(h => h.status !== "취소").forEach(h => {
+    h.songs.forEach(id => {
+      if (!out[id]) out[id] = { n: 0, first: h.date };
+      out[id].n++;
+      if (h.date < out[id].first) out[id].first = h.date;
+    });
+  });
+  return out;
+}
+
+function voteTally(id){
+  const v = ST.votes[id] || {};
+  const up = [], down = [];
+  members().forEach(n => { if (v[n] === 1) up.push(n); else if (v[n] === -1) down.push(n); });
+  return { up, down, mine: v[me] };
+}
+
+function renderSongs(){
+  const all = songsOf();
+  $("#songSummary").textContent = all.length
+    ? STATUS_ORDER.map(s => { const n = all.filter(x => x.status === s).length; return n ? s + " " + n : null; })
+      .filter(Boolean).join(" · ")
+    : "아직 곡이 없습니다";
+
+  const vc = $("#voterChips"); vc.innerHTML = "";
+  members().forEach(n => {
+    const b = document.createElement("button");
+    b.className = "chip sm"; b.type = "button"; b.textContent = n;
+    b.setAttribute("aria-pressed", String(n === me));
+    b.onclick = () => {
+      me = n; localStorage.setItem("bm_name:" + B, me);
+      renderMembers(); renderSongs();
+    };
+    vc.appendChild(b);
+  });
+  $("#voterHint").textContent = me ? (me + " 님으로 투표 중") : "후보곡에 투표하려면 이름을 골라주세요.";
+
+  const stats = songStats();
+  const box = $("#songList"); box.innerHTML = "";
+  if (!all.length){ box.innerHTML = '<div class="empty">곡 추가를 눌러 시작하세요.</div>'; return; }
+
+  STATUS_ORDER.forEach(st => {
+    const list = all.filter(s => s.status === st);
+    if (!list.length) return;
+    const sec = document.createElement("div"); sec.className = "sec";
+    const hd = document.createElement("div"); hd.className = "sechead";
+    hd.innerHTML = '<h3></h3><span class="n"></span>';
+    hd.querySelector("h3").textContent = st;
+    hd.querySelector(".n").textContent = list.length + "곡";
+    sec.appendChild(hd);
+    list.forEach(s => sec.appendChild(songCard(s, stats[s.id])));
+    box.appendChild(sec);
+  });
+}
+
+function songCard(s, stat){
+  const el = document.createElement("div"); el.className = "item";
+
+  const t = document.createElement("div"); t.className = "ttl"; t.textContent = s.title;
+  el.appendChild(t);
+
+  const metaBits = [s.artist, s.picker ? "선곡 " + s.picker : ""].filter(Boolean);
+  if (metaBits.length){
+    const m = document.createElement("div"); m.className = "meta";
+    m.textContent = metaBits.join(" · ");
+    el.appendChild(m);
+  }
+
+  const badges = document.createElement("div"); badges.className = "badges";
+  const addPill = (txt, cls) => {
+    if (!txt) return;
+    const p = document.createElement("span"); p.className = "pill " + (cls || "grey");
+    p.textContent = txt; badges.appendChild(p);
+  };
+  addPill(s.key, "");
+  addPill(s.tuning, "amber");
+  if (stat) addPill("합주 " + stat.n + "회 · " + fmtD(stat.first) + " 첫 합주", "grey");
+  if (badges.children.length) el.appendChild(badges);
+
+  const links = parseLinks(s.links);
+  if (links.length){
+    const lb = document.createElement("div"); lb.className = "badges";
+    links.forEach(l => {
+      const a = document.createElement("a");
+      a.className = "lnk"; a.href = l.url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = l.label;
+      lb.appendChild(a);
+    });
+    el.appendChild(lb);
+  }
+
+  if (s.parts || s.memo){
+    const bd = document.createElement("div"); bd.className = "body";
+    if (s.parts){
+      const k = document.createElement("span"); k.className = "k"; k.textContent = "파트";
+      bd.appendChild(k); bd.appendChild(document.createTextNode(s.parts));
+    }
+    if (s.memo){
+      if (s.parts) bd.appendChild(document.createElement("br"));
+      const k2 = document.createElement("span"); k2.className = "k"; k2.textContent = "메모";
+      k2.style.marginTop = "8px";
+      bd.appendChild(k2); bd.appendChild(document.createTextNode(s.memo));
+    }
+    el.appendChild(bd);
+  }
+
+  if (s.status === "후보"){
+    const tal = voteTally(s.id);
+    const vb = document.createElement("div"); vb.className = "votebar";
+    [["좋아요", 1], ["별로", -1]].forEach(([lab, val]) => {
+      const b = document.createElement("button");
+      b.className = "chip sm"; b.type = "button"; b.textContent = lab;
+      b.setAttribute("aria-pressed", String(!!me && tal.mine === val));
+      b.disabled = !me;
+      b.onclick = () => vote(s.id, tal.mine === val ? null : val);
+      vb.appendChild(b);
+    });
+    const tt = document.createElement("span"); tt.className = "tally";
+    tt.textContent = tal.up.length || tal.down.length
+      ? "좋아요 " + tal.up.length + (tal.up.length ? " (" + tal.up.join(", ") + ")" : "") +
+        (tal.down.length ? " · 별로 " + tal.down.length : "")
+      : "아직 투표 없음";
+    vb.appendChild(tt);
+    el.appendChild(vb);
+  }
+
+  const acts = document.createElement("div"); acts.className = "acts";
+  (NEXT_STATUS[s.status] || []).forEach(x => {
+    const b = document.createElement("button");
+    b.className = "btn ghost"; b.textContent = ro(x);
+    b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:x }, s.title + " → " + x);
+    acts.appendChild(b);
+  });
+  const ed = document.createElement("button");
+  ed.className = "btn ghost"; ed.textContent = "수정";
+  ed.onclick = () => openSongForm(s);
+  acts.appendChild(ed);
+  el.appendChild(acts);
+
+  return el;
+}
+
+async function vote(id, val){
+  if (!me){ setStatus("먼저 이름을 골라주세요", "err"); return; }
+  setStatus("투표 저장 중…");
+  try {
+    ST = await api({ action:"vote_set", band:B, id, name:me, value: val === null ? "" : String(val) });
+    if (val === null) { /* 취소 */ }
+    renderSongs();
+    setStatus("투표 반영됨 ✓", "ok");
+  } catch(e){ setStatus("투표 실패 — " + e.message, "err"); }
+}
+
+let songEditing = null;
+function openSongForm(s){
+  songEditing = s || null;
+  $("#songFormTitle").textContent = s ? "곡 수정" : "곡 추가";
+  $("#f_title").value  = s ? s.title  : "";
+  $("#f_artist").value = s ? s.artist : "";
+  $("#f_key").value    = s ? s.key    : "";
+  $("#f_picker").value = s ? s.picker : (me || "");
+  $("#f_status").value = s ? s.status : "후보";
+  $("#f_links").value  = s ? s.links  : "";
+  $("#f_parts").value  = s ? s.parts  : "";
+  $("#f_tuning").value = s ? s.tuning : "";
+  $("#f_memo").value   = s ? s.memo   : "";
+  $("#songDelete").hidden = !s;
+  $("#songForm").hidden = false;
+  $("#songForm").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; }
+
+$("#songNew").onclick    = () => openSongForm(null);
+$("#songCancel").onclick = closeSongForm;
+$("#songSave").onclick   = async () => {
+  const p = {
+    id: songEditing ? songEditing.id : "",
+    added: songEditing ? songEditing.added : "",
+    status: $("#f_status").value,
+    title: $("#f_title").value.trim(), artist: $("#f_artist").value.trim(),
+    key: $("#f_key").value.trim(), picker: $("#f_picker").value.trim(),
+    links: $("#f_links").value.trim(), parts: $("#f_parts").value.trim(),
+    tuning: $("#f_tuning").value.trim(), memo: $("#f_memo").value.trim()
+  };
+  if (!p.title){ setStatus("곡 제목을 적어주세요", "err"); return; }
+  closeSongForm();
+  await act({ action:"song_save", band:B, payload: JSON.stringify(p) }, p.title + " 저장됨");
+};
+$("#songDelete").onclick = () => {
+  if (!songEditing) return;
+  if (!confirm(songEditing.title + " 을 지울까요? 투표와 이력 연결도 함께 지워집니다.")) return;
+  const id = songEditing.id, t = songEditing.title;
+  closeSongForm();
+  act({ action:"song_remove", band:B, id }, t + " 삭제됨");
+};
+
+/* ═══════════════ 이력 ═══════════════ */
+function renderHist(){
+  const list = histOf();
+  const done = list.filter(h => h.status === "완료").length;
+  const plan = list.filter(h => h.status === "예정").length;
+  $("#histSummary").textContent = list.length
+    ? "완료 " + done + " · 예정 " + plan + (list.length - done - plan ? " · 취소 " + (list.length - done - plan) : "")
+    : "아직 기록이 없습니다";
+
+  const box = $("#histList"); box.innerHTML = "";
+  if (!list.length){ box.innerHTML = '<div class="empty">회차 추가를 눌러 시작하세요.</div>'; return; }
+
+  // (NEW) 계산: 오래된 순으로 누적
+  const seen = new Set(), newOf = {};
+  list.slice().reverse().forEach(h => {
+    if (h.status === "취소") { newOf[h.id] = []; return; }
+    newOf[h.id] = h.songs.filter(id => !seen.has(id));
+    h.songs.forEach(id => seen.add(id));
+  });
+
+  list.forEach(h => box.appendChild(histCard(h, newOf[h.id] || [])));
+}
+
+function histCard(h, fresh){
+  const el = document.createElement("div"); el.className = "item";
+
+  const top = document.createElement("div"); top.className = "spread";
+  const t = document.createElement("div"); t.className = "ttl";
+  t.textContent = fmtLong(h.date);
+  if (h.status === "취소") t.style.textDecoration = "line-through";
+  top.appendChild(t);
+  const st = document.createElement("span");
+  st.className = "pill " + (h.status === "취소" ? "warn" : h.status === "예정" ? "grey" : "");
+  st.textContent = h.status;
+  top.appendChild(st);
+  el.appendChild(top);
+
+  const bits = [];
+  if (h.from || h.to) bits.push((h.from || "") + (h.to ? "~" + h.to : ""));
+  if (h.place) bits.push(h.place);
+  if (h.room)  bits.push(h.room);
+  if (bits.length){
+    const m = document.createElement("div"); m.className = "meta"; m.textContent = bits.join(" · ");
+    el.appendChild(m);
+  }
+
+  if (h.songs.length){
+    const sb = document.createElement("div"); sb.className = "body";
+    const k = document.createElement("span"); k.className = "k"; k.textContent = "합주곡";
+    sb.appendChild(k);
+    h.songs.forEach((id, i) => {
+      const s = songById(id);
+      const line = document.createElement("div");
+      line.textContent = (s ? s.title : "(삭제된 곡)") + (fresh.includes(id) ? "  (NEW)" : "");
+      if (fresh.includes(id)) line.style.color = "var(--accent)";
+      sb.appendChild(line);
+    });
+    el.appendChild(sb);
+  }
+
+  if (h.absent.length || h.memo){
+    const bd = document.createElement("div"); bd.className = "body";
+    if (h.absent.length){
+      const k = document.createElement("span"); k.className = "k"; k.textContent = "불참";
+      bd.appendChild(k); bd.appendChild(document.createTextNode(h.absent.join(", ")));
+    }
+    if (h.memo){
+      if (h.absent.length) bd.appendChild(document.createElement("br"));
+      const k2 = document.createElement("span"); k2.className = "k"; k2.textContent = "메모";
+      bd.appendChild(k2); bd.appendChild(document.createTextNode(h.memo));
+    }
+    el.appendChild(bd);
+  }
+
+  const acts = document.createElement("div"); acts.className = "acts";
+  const ed = document.createElement("button");
+  ed.className = "btn ghost"; ed.textContent = "수정";
+  ed.onclick = () => openHistForm(h);
+  acts.appendChild(ed);
+  el.appendChild(acts);
+  return el;
+}
+
+let histEditing = null, hAbsent = new Set(), hSongs = new Set();
+
+function openHistForm(h){
+  histEditing = h || null;
+  $("#histFormTitle").textContent = h ? "회차 수정" : "회차 추가";
+  $("#h_date").value   = h ? h.date  : "";
+  $("#h_from").value   = h ? h.from  : "10:00";
+  $("#h_to").value     = h ? h.to    : "12:00";
+  $("#h_place").value  = h ? h.place : (lastPlace() || "");
+  $("#h_room").value   = h ? h.room  : (lastRoom() || "");
+  $("#h_status").value = h ? h.status : "완료";
+  $("#h_memo").value   = h ? h.memo  : "";
+  hAbsent = new Set(h ? h.absent : []);
+  hSongs  = new Set(h ? h.songs  : []);
+  renderHistPickers();
+  $("#histDelete").hidden = !h;
+  $("#histForm").hidden = false;
+  $("#histForm").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+function closeHistForm(){ histEditing = null; $("#histForm").hidden = true; }
+function lastPlace(){ const l = histOf(); return l.length ? l[0].place : ""; }
+function lastRoom(){  const l = histOf(); return l.length ? l[0].room  : ""; }
+
+function renderHistPickers(){
+  const ab = $("#h_absent"); ab.innerHTML = "";
+  members().forEach(n => {
+    const b = document.createElement("button");
+    b.className = "chip sm"; b.type = "button"; b.textContent = n;
+    b.setAttribute("aria-pressed", String(hAbsent.has(n)));
+    b.onclick = () => { hAbsent.has(n) ? hAbsent.delete(n) : hAbsent.add(n); renderHistPickers(); };
+    ab.appendChild(b);
+  });
+  const sp = $("#h_songs"); sp.innerHTML = "";
+  const cand = songsOf().filter(s => s.status === "연습중" || s.status === "완료" || hSongs.has(s.id));
+  if (!cand.length) sp.innerHTML = '<span class="hint" style="margin:0">연습중인 곡이 없습니다.</span>';
+  cand.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "chip sm"; b.type = "button"; b.textContent = s.title;
+    b.setAttribute("aria-pressed", String(hSongs.has(s.id)));
+    b.onclick = () => { hSongs.has(s.id) ? hSongs.delete(s.id) : hSongs.add(s.id); renderHistPickers(); };
+    sp.appendChild(b);
+  });
+}
+
+$("#histNew").onclick     = () => openHistForm(null);
+$("#histCancel").onclick  = closeHistForm;
+$("#h_copyPrev").onclick  = () => {
+  const prev = histOf().filter(h => h.status !== "취소" && (!histEditing || h.id !== histEditing.id))[0];
+  if (!prev){ setStatus("직전 회차가 없습니다", "err"); return; }
+  hSongs = new Set(prev.songs);
+  renderHistPickers();
+};
+$("#histSave").onclick = async () => {
+  const p = {
+    id: histEditing ? histEditing.id : "",
+    date: $("#h_date").value, from: $("#h_from").value, to: $("#h_to").value,
+    place: $("#h_place").value.trim(), room: $("#h_room").value.trim(),
+    status: $("#h_status").value, memo: $("#h_memo").value.trim(),
+    absent: Array.from(hAbsent), songs: Array.from(hSongs)
+  };
+  if (!p.date){ setStatus("날짜를 골라주세요", "err"); return; }
+  closeHistForm();
+  await act({ action:"hist_save", band:B, payload: JSON.stringify(p) }, fmtFull(p.date) + " 회차 저장됨");
+};
+$("#histDelete").onclick = () => {
+  if (!histEditing) return;
+  if (!confirm(fmtLong(histEditing.date) + " 회차를 지울까요?")) return;
+  const id = histEditing.id;
+  closeHistForm();
+  act({ action:"hist_remove", band:B, id }, "회차 삭제됨");
+};
+
+/* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
+let dsel = new Set(), dateDirty = false, dateTimer = null;
+let calY = null, calM = null;
+
+function syncDsel(){ if (!dateDirty) dsel = new Set(cfg().dates); }
 
 function dateChanged(){
   dateDirty = true;
@@ -753,42 +1272,32 @@ function dateChanged(){
   clearTimeout(dateTimer);
   dateTimer = setTimeout(saveDates, 900);
 }
-
-function toggleDate(d){
-  dsel.has(d) ? dsel.delete(d) : dsel.add(d);
-  renderCal(); dateChanged();
-}
+function toggleDate(d){ dsel.has(d) ? dsel.delete(d) : dsel.add(d); renderCal(); dateChanged(); }
 
 async function saveDates(){
   clearTimeout(dateTimer);
   const want = Array.from(dsel).sort();
   setStatus("저장 중…");
   try {
-    ST = await api({ action:"config_set", dates: want.join(",") });
+    ST = await api({ action:"config_set", band:B, dates: want.join(",") });
     dateDirty = false;
     applyConfig(); loadMine(); renderAll();
     setStatus("날짜 후보 " + want.length + "일 저장됨 ✓", "ok");
-  } catch(e){
-    setStatus("날짜 저장 실패 — " + e.message, "err");
-  }
+  } catch(e){ setStatus("날짜 저장 실패 — " + e.message, "err"); }
 }
 
 function renderCal(){
   if (calY === null){ const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); }
   $("#calYM").textContent = calY + "년 " + (calM + 1) + "월";
-
   const cal = $("#cal"); cal.innerHTML = "";
   DOW.forEach((w, i) => {
     const h = document.createElement("div");
-    h.className = "dowh" + (i === 0 ? " sun" : "");
-    h.textContent = w;
+    h.className = "dowh" + (i === 0 ? " sun" : ""); h.textContent = w;
     cal.appendChild(h);
   });
-
   const first = new Date(calY, calM, 1);
   const days  = new Date(calY, calM + 1, 0).getDate();
   const today = iso(new Date());
-
   for (let i = 0; i < first.getDay(); i++){
     const b = document.createElement("div"); b.className = "d blank"; cal.appendChild(b);
   }
@@ -797,16 +1306,13 @@ function renderCal(){
     const past = d < today;
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "d" + (past ? " past" : "") + (d === today ? " today" : "") +
-                  (dsel.has(d) ? " on" : "");
-    b.textContent = n;
-    b.dataset.d = d;
+    b.className = "d" + (past ? " past" : "") + (d === today ? " today" : "") + (dsel.has(d) ? " on" : "");
+    b.textContent = n; b.dataset.d = d;
     if (past) b.disabled = true;
     cal.appendChild(b);
   }
 }
 
-/* ── 달력 드래그 ── */
 (function(){
   const cal = $("#cal");
   let mode = null;
@@ -819,7 +1325,7 @@ function renderCal(){
     if (!b) return;
     const d = b.dataset.d;
     if (mode === "on"){ if (!dsel.has(d)){ dsel.add(d); b.classList.add("on"); } }
-    else              { if (dsel.has(d)){ dsel.delete(d); b.classList.remove("on"); } }
+    else              { if (dsel.has(d)) { dsel.delete(d); b.classList.remove("on"); } }
   };
   cal.addEventListener("pointerdown", e => {
     const b = at(e.clientX, e.clientY);
@@ -852,9 +1358,7 @@ function renderDateChips(){
 }
 
 function toggleDow(dow){
-  const days  = new Date(calY, calM + 1, 0).getDate();
-  const today = iso(new Date());
-  const hits  = [];
+  const days = new Date(calY, calM + 1, 0).getDate(), today = iso(new Date()), hits = [];
   for (let n = 1; n <= days; n++){
     const o = new Date(calY, calM, n), d = iso(o);
     if (o.getDay() === dow && d >= today) hits.push(d);
@@ -865,7 +1369,6 @@ function toggleDow(dow){
   renderCal(); dateChanged();
 }
 
-/* ── 기간으로 한 번에 ── */
 const rdow = new Set();
 function renderRngDow(){
   const box = $("#rngDow"); box.innerHTML = "";
@@ -878,7 +1381,7 @@ function renderRngDow(){
   });
 }
 renderRngDow();
-(function(){                                        // 기본 기간: 오늘 ~ 12주 뒤
+(function(){
   const a = new Date(), b = new Date(); b.setDate(b.getDate() + 84);
   $("#rngFrom").value = iso(a);
   $("#rngTo").value   = iso(b);
@@ -888,67 +1391,67 @@ function rangeApply(add){
   const a = $("#rngFrom").value, b = $("#rngTo").value;
   if (!a || !b){ setStatus("시작일과 종료일을 골라주세요", "err"); return; }
   if (a > b){ setStatus("종료일이 시작일보다 빠릅니다", "err"); return; }
-
-  const today = iso(new Date());
-  const from = dObj(a), to = dObj(b);
+  const today = iso(new Date()), from = dObj(a), to = dObj(b);
   if ((to - from) / 86400000 > 400){ setStatus("기간이 너무 깁니다 (최대 400일)", "err"); return; }
-
   let hit = 0;
   for (let o = new Date(from); o <= to; o.setDate(o.getDate() + 1)){
     const d = iso(o);
-    if (d < today) continue;                       // 지난 날짜는 건너뜀
+    if (d < today) continue;
     if (rdow.size && !rdow.has(o.getDay())) continue;
     if (add){ if (!dsel.has(d)){ dsel.add(d); hit++; } }
     else    { if (dsel.has(d)) { dsel.delete(d); hit++; } }
   }
   if (!hit){ setStatus(add ? "추가할 날이 없습니다" : "제외할 날이 없습니다", "err"); return; }
-
-  const jump = dObj(a);                            // 작업한 기간의 첫 달을 보여줌
-  calY = jump.getFullYear(); calM = jump.getMonth();
+  const jump = dObj(a); calY = jump.getFullYear(); calM = jump.getMonth();
   renderCal(); dateChanged();
   setStatus((add ? "추가 " : "제외 ") + hit + "일 — 곧 저장됩니다");
 }
 $("#rngAdd").onclick = () => rangeApply(true);
 $("#rngDel").onclick = () => rangeApply(false);
 
-$("#calPrev").onclick  = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
-$("#calNext").onclick  = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
-$("#calToday").onclick = () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); renderCal(); };
-$("#calDow0").onclick  = () => toggleDow(0);
-$("#calDow6").onclick  = () => toggleDow(6);
-$("#calClear").onclick = () => {
-  if (!dsel.size) return;
-  if (!confirm("날짜 후보를 전부 지웁니다. 응답은 남지만 화면에서 사라집니다. 계속할까요?")) return;
-  dsel.clear(); dateDirty = true;
-  renderCal(); renderDateChips(); saveDates();
-};
-
-/* ═══════════════ 관리 — 멤버 ═══════════════ */
+/* ═══════════════ 관리 — 멤버 · 밴드 ═══════════════ */
 function renderAdmin(){
-  syncDsel();
-  renderCal();
-  renderDateChips();
+  syncDsel(); renderCal(); renderDateChips();
 
   const ml = $("#memberList"); ml.innerHTML = "";
-  if (!ST.members.length) ml.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
-  ST.members.forEach(n => {
+  if (!members().length) ml.innerHTML = '<li class="empty" style="padding:8px">없음</li>';
+  members().forEach(n => {
     const li = document.createElement("li");
-    const s = document.createElement("span");
-    s.className = "grow"; s.textContent = n;
+    const s = document.createElement("span"); s.className = "grow"; s.textContent = n;
     const r = document.createElement("button");
     r.className = "btn ghost"; r.textContent = "이름변경";
     r.onclick = async () => {
       const to = prompt("새 이름", n); if (!to || to === n) return;
-      await act({ action:"member_rename", from:n, to }, "이름 변경됨");
-      if (me === n){ me = to; localStorage.setItem("bm_name", me); }
+      await act({ action:"member_rename", band:B, from:n, to }, "이름 변경됨");
+      if (me === n){ me = to; localStorage.setItem("bm_name:" + B, me); renderAll(); }
     };
     const x = document.createElement("button");
     x.className = "btn ghost danger"; x.textContent = "삭제";
     x.onclick = () => {
-      if (!confirm(n + " 님을 삭제할까요? 응답도 함께 지워집니다.")) return;
-      act({ action:"member_remove", name:n }, "삭제됨");
+      if (!confirm(n + " 님을 삭제할까요? 응답·투표도 함께 지워집니다.")) return;
+      act({ action:"member_remove", band:B, name:n }, "삭제됨");
     };
     li.append(s, r, x); ml.appendChild(li);
+  });
+
+  const bl = $("#bandList"); bl.innerHTML = "";
+  ST.bands.forEach(b => {
+    const li = document.createElement("li");
+    const s = document.createElement("span"); s.className = "grow";
+    s.textContent = b.name + (b.id === B ? "  (보는 중)" : "");
+    const r = document.createElement("button");
+    r.className = "btn ghost"; r.textContent = "이름변경";
+    r.onclick = () => {
+      const to = prompt("새 밴드 이름", b.name); if (!to || to === b.name) return;
+      act({ action:"band_rename", band:b.id, name:to }, "밴드 이름 변경됨");
+    };
+    const x = document.createElement("button");
+    x.className = "btn ghost danger"; x.textContent = "삭제";
+    x.onclick = () => {
+      if (!confirm(b.name + " 밴드를 지울까요? 일정·곡·이력이 모두 사라집니다.")) return;
+      act({ action:"band_remove", band:b.id }, "밴드 삭제됨");
+    };
+    li.append(s, r, x); bl.appendChild(li);
   });
 }
 
@@ -956,54 +1459,76 @@ async function act(params, okMsg){
   setStatus("처리 중…");
   try {
     ST = await api(params);
+    if (!ST.bands.some(b => b.id === B)) B = ST.bands[0].id;
+    if (!members().includes(me)) me = localStorage.getItem("bm_name:" + B) || "";
+    if (!members().includes(me)) me = "";
+    dsel = new Set(cfg().dates); dateDirty = false;
     applyConfig(); loadMine(); renderAll();
     setStatus(okMsg || "완료", "ok");
   } catch(e){ setStatus("실패 — " + e.message, "err"); }
 }
+
 $("#memberAdd").onclick = () => {
   const v = $("#memberInput").value.trim();
   if (!v) return;
   $("#memberInput").value = "";
-  act({ action:"member_add", name:v }, v + " 추가됨");
+  act({ action:"member_add", band:B, name:v }, v + " 추가됨");
 };
 $("#memberInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#memberAdd").click(); });
+$("#bandAdd").onclick = () => {
+  const v = $("#bandInput").value.trim();
+  if (!v) return;
+  $("#bandInput").value = "";
+  act({ action:"band_add", name:v }, v + " 밴드 추가됨");
+};
+$("#bandInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#bandAdd").click(); });
 $("#hourSave").onclick = () => act({
-  action:"config_set", hourStart: $("#hStart").value, hourEnd: $("#hEnd").value
+  action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value
 }, "시간 범위 저장됨");
-$("#titleSave").onclick = () => act({ action:"config_set", title: $("#titleInput").value }, "제목 저장됨");
+$("#titleSave").onclick = () => act({ action:"config_set", band:B, title: $("#titleInput").value }, "제목 저장됨");
 $("#copyLink").onclick = async () => {
   const url = location.origin + location.pathname;
   try { await navigator.clipboard.writeText(url); setStatus("링크 복사됨 — " + url, "ok"); }
   catch(e){ prompt("이 주소를 공유하세요", url); }
 };
 $("#resetBtn").onclick = () => {
-  if (!confirm("모든 멤버의 응답과 메모를 지웁니다. 계속할까요?")) return;
-  act({ action:"reset_answers" }, "초기화됨");
+  if (!confirm("이 밴드의 모든 응답과 메모를 지웁니다. 계속할까요?")) return;
+  act({ action:"reset_answers", band:B }, "초기화됨");
 };
+$("#calClear").onclick = () => {
+  if (!dsel.size) return;
+  if (!confirm("날짜 후보를 전부 지웁니다. 계속할까요?")) return;
+  dsel.clear(); dateDirty = true;
+  renderCal(); renderDateChips(); saveDates();
+};
+$("#calPrev").onclick  = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
+$("#calNext").onclick  = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
+$("#calToday").onclick = () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); renderCal(); };
+$("#calDow0").onclick  = () => toggleDow(0);
+$("#calDow6").onclick  = () => toggleDow(6);
 
-/* ═══════════════ 기타 UI ═══════════════ */
-$("#clearAll").onclick = () => { sel.clear(); paintGrid(); touch(); };
-$("#saveBtn").onclick  = save;
+/* ═══════════════ 탭 ═══════════════ */
+$("#clearAll").onclick  = () => { sel.clear(); paintGrid(); touch(); };
+$("#saveBtn").onclick   = save;
 $("#reloadBtn").onclick = load;
 
-const VIEWS = { answer:"#view-answer", result:"#view-result", admin:"#view-admin" };
+const VIEWS = { answer:"#view-answer", result:"#view-result", song:"#view-song",
+                hist:"#view-hist", admin:"#view-admin" };
 function show(v){
+  view = v;
   for (const k in VIEWS){
     $(VIEWS[k]).hidden = (k !== v);
     $("#tab-" + k).setAttribute("aria-selected", String(k === v));
   }
-  $("#saveBtn").hidden = !(v === "answer" && me && ST.config.dates.length);
+  $("#saveBtn").hidden = !(v === "answer" && me && cfg().dates.length);
 }
-$("#tab-answer").onclick = () => show("answer");
-$("#tab-result").onclick = () => { renderResult(); show("result"); };
-$("#tab-admin").onclick  = () => { renderAdmin(); show("admin"); };
+Object.keys(VIEWS).forEach(k => { $("#tab-" + k).onclick = () => show(k); });
 
-// #admin 으로 들어오면 바로 관리 화면. (관리 탭은 누구에게나 보입니다)
-if (location.hash.toLowerCase() === "#admin") show("admin");
+if (location.hash.toLowerCase() === "#admin") view = "admin";
 
 window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
 
-load().then(() => { if (me){ loadMine(); renderMembers(); renderGrid(); renderNotes(); setStatus(me + " 님으로 응답 중", "ok"); } });
+load();
 </script>
 </body>
 </html>
