@@ -1261,7 +1261,18 @@ $("#histDelete").onclick = () => {
 
 /* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
 let dsel = new Set(), dateDirty = false, dateTimer = null;
-let calY = null, calM = null;
+/** 보고 있는 달. 로드 전에 ‹ › 를 눌러도 엉뚱한 연도로 가지 않게 이번 달로 미리 정해둔다. */
+let calY, calM;
+calToday_();
+function calToday_(){ const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); }
+function calShift_(n){
+  if (!Number.isFinite(calY) || !Number.isFinite(calM)) calToday_();
+  calM += n;
+  while (calM < 0)  { calM += 12; calY--; }
+  while (calM > 11) { calM -= 12; calY++; }
+  if (calY < 1970 || calY > 3000) calToday_();   // 안전망
+  renderCal();
+}
 
 function syncDsel(){ if (!dateDirty) dsel = new Set(cfg().dates); }
 
@@ -1287,7 +1298,7 @@ async function saveDates(){
 }
 
 function renderCal(){
-  if (calY === null){ const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); }
+  if (!Number.isFinite(calY) || !Number.isFinite(calM)) calToday_();
   $("#calYM").textContent = calY + "년 " + (calM + 1) + "월";
   const cal = $("#cal"); cal.innerHTML = "";
   DOW.forEach((w, i) => {
@@ -1501,9 +1512,9 @@ $("#calClear").onclick = () => {
   dsel.clear(); dateDirty = true;
   renderCal(); renderDateChips(); saveDates();
 };
-$("#calPrev").onclick  = () => { calM--; if (calM < 0){ calM = 11; calY--; } renderCal(); };
-$("#calNext").onclick  = () => { calM++; if (calM > 11){ calM = 0; calY++; } renderCal(); };
-$("#calToday").onclick = () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); renderCal(); };
+$("#calPrev").onclick  = () => calShift_(-1);
+$("#calNext").onclick  = () => calShift_(+1);
+$("#calToday").onclick = () => { calToday_(); renderCal(); };
 $("#calDow0").onclick  = () => toggleDow(0);
 $("#calDow6").onclick  = () => toggleDow(6);
 
