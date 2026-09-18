@@ -258,6 +258,11 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 .cardhead .caret{flex:0 0 auto;color:var(--muted);font-size:11px;margin-top:5px;
   transition:transform .15s ease}
 .item.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
+.card.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
+.arch{border-top:1px solid var(--line);padding-top:11px;margin-top:11px}
+.arch:first-child{border-top:0;padding-top:0;margin-top:0}
+.arch .ad{font-weight:700;font-size:14px}
+.arch .aw{color:var(--muted);font-size:12.5px;margin-top:3px;white-space:pre-wrap;line-height:1.55}
 .item .det{margin-top:2px}
 
 .votebar{display:flex;align-items:center;gap:10px 8px;flex-wrap:wrap;margin-top:11px;
@@ -349,6 +354,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn ghost" id="reloadBtn" style="flex:0 0 auto;white-space:nowrap">새로고침</button>
       </div>
       <div class="chips" id="respChips" style="margin-top:12px"></div>
+      <p class="hint" style="margin:9px 0 0">이름을 누르면 그 사람이 가능한 시간만 표에 보여줍니다.</p>
     </div>
 
     <div class="card">
@@ -360,7 +366,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 
     <div class="card">
       <h2>전체 표</h2>
-      <p class="hint">숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.</p>
+      <p class="hint" id="heatHint">숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.</p>
       <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="heat"></div></div>
       <div id="heatDetail"></div>
     </div>
@@ -368,6 +374,18 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     <div class="card" id="noteDigest" hidden>
       <h2>멤버 메모</h2>
       <div id="noteList"></div>
+    </div>
+
+    <!-- 후보에서 뺀 날짜의 응답·메모는 지워지지 않고 여기에 접혀서 남는다 -->
+    <div class="card" id="archCard" hidden>
+      <button class="cardhead" id="archHead" type="button">
+        <div class="hgrow">
+          <h2 style="margin:0">지난 후보 날짜</h2>
+          <p class="hint" style="margin:2px 0 0" id="archHint"></p>
+        </div>
+        <span class="caret">▼</span>
+      </button>
+      <div class="det" id="archBody" hidden></div>
     </div>
   </section>
 
@@ -592,7 +610,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18q";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18r";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -663,6 +681,7 @@ let me = "";                  // 현재 밴드에서 내 이름
 let sel = new Set(), noteDraft = {};
 let dirty = false, saving = false, saveTimer = null;
 let thresh = null, pick = null;
+let focusName = null;      // 결과 탭에서 '이 사람만 보기'
 let view = "answer";
 
 const $  = s => document.querySelector(s);
@@ -775,7 +794,7 @@ function pickBand(id, quiet){
   localStorage.setItem("bm_band", B);
   const saved = localStorage.getItem("bm_name:" + B) || "";
   me = members().includes(saved) ? saved : "";
-  thresh = null; pick = null;
+  thresh = null; pick = null; focusName = null;
   dsel = new Set(cfg().dates); dateDirty = false;
   loadMine();
   applyConfig();
@@ -1065,6 +1084,75 @@ async function save(){
 function responders(){ return members().filter(answered); }
 function availAt(d, h){ return responders().filter(n => ((hoursOf()[n] || {})[d] || []).includes(h)); }
 
+/* 후보에서 뺀 날짜의 응답·메모는 시트에서 지워지지 않는다(서버는 보낸 날짜만 덮어쓴다).
+   그래서 화면에서만 사라져 있었는데, 접힌 보관함으로 다시 꺼내 볼 수 있게 했다. */
+let archOpen = false;
+
+function archivedDates(){
+  const cur = new Set(cfg().dates), seen = {};
+  const add = (d, n) => { if (!cur.has(d)) (seen[d] = seen[d] || new Set()).add(n); };
+  const H = hoursOf(), N = notesOf();
+  Object.keys(H).forEach(n => Object.keys(H[n] || {}).forEach(d => add(d, n)));
+  Object.keys(N).forEach(n => Object.keys(N[n] || {}).forEach(d => { if (N[n][d]) add(d, n); }));
+  return Object.keys(seen).sort().reverse().map(d => ({ d, who: Array.from(seen[d]) }));
+}
+
+function renderArchive(){
+  const list = archivedDates();
+  $("#archCard").hidden = !list.length;
+  $("#archCard").classList.toggle("on", archOpen);
+  $("#archBody").hidden = !archOpen;
+  if (!list.length) return;
+
+  $("#archHint").textContent =
+    list.length + "일 · 후보에서 뺐지만 응답·메모는 그대로 남아 있습니다";
+
+  const box = $("#archBody"); box.innerHTML = "";
+  list.forEach(x => {
+    const wrap = document.createElement("div"); wrap.className = "arch";
+
+    const top = document.createElement("div"); top.className = "spread";
+    const t = document.createElement("div"); t.className = "ad"; t.textContent = fmtFull(x.d);
+    const back = document.createElement("button");
+    back.className = "btn ghost"; back.type = "button"; back.textContent = "다시 후보에 넣기";
+    back.onclick = () => {
+      dsel.add(x.d);
+      renderCal(); dateChanged();
+      setStatus(fmtFull(x.d) + " 을 후보에 다시 넣었습니다 · 저장 중…");
+    };
+    top.append(t, back);
+    wrap.appendChild(top);
+
+    const lines = [];
+    x.who.forEach(n => {
+      const hrs = (hoursOf()[n] || {})[x.d];
+      const memo = (notesOf()[n] || {})[x.d];
+      let one = n + " — ";
+      if (Array.isArray(hrs) && hrs.length) one += runsOf(hrs);
+      else if (Array.isArray(hrs)) one += "그 날 전부 불가";
+      else one += "응답 없음";
+      if (memo) one += " · " + memo;
+      lines.push(one);
+    });
+    const w = document.createElement("div"); w.className = "aw"; w.textContent = lines.join("\n");
+    wrap.appendChild(w);
+    box.appendChild(wrap);
+  });
+}
+
+/** [10,11,12,15] → "10–13시, 15–16시" */
+function runsOf(list){
+  const a = list.slice().sort((x,y) => x - y), out = [];
+  let st = null, prev = null;
+  a.forEach(h => {
+    if (st === null){ st = prev = h; return; }
+    if (h === prev + 1){ prev = h; return; }
+    out.push(hh(st) + "–" + hh(prev + 1)); st = prev = h;
+  });
+  if (st !== null) out.push(hh(st) + "–" + hh(prev + 1));
+  return out.join(", ");
+}
+
 function renderResult(){
   const rs = responders(), ds = cfg().dates, hs = hours();
   $("#respSummary").textContent = members().length
@@ -1072,13 +1160,16 @@ function renderResult(){
 
   const rc = $("#respChips"); rc.innerHTML = "";
   members().forEach(n => {
-    const s = document.createElement("span");
+    const s = document.createElement("button");
+    s.type = "button";
     s.className = "chip" + (answered(n) ? " done" : "");
-    s.style.cursor = "default";
     if (!answered(n)) s.style.opacity = ".5";
+    s.setAttribute("aria-pressed", String(focusName === n));
     s.textContent = n;
+    s.onclick = () => { focusName = (focusName === n) ? null : n; pick = null; renderResult(); };
     rc.appendChild(s);
   });
+  if (focusName && !members().includes(focusName)) focusName = null;
 
   const T = (thresh === null || thresh > rs.length) ? (rs.length || 1) : thresh;
 
@@ -1135,17 +1226,27 @@ function renderResult(){
     hs.forEach(h => {
       g.appendChild(cell("gc hh", String(h)));
       ds.forEach(d => {
-        const n = availAt(d,h).length;
-        const c = cell("gc hcell" + (n ? "" : " z"), String(n));
-        if (n && rs.length) c.style.background =
-          "rgba(var(--accent-rgb)," + (0.12 + 0.72 * (n / rs.length)).toFixed(3) + ")";
-        if (n >= T && n > 0) c.classList.add("full");
+        let c;
+        if (focusName){                                   // 한 사람만 보기
+          const ok = ((hoursOf()[focusName] || {})[d] || []).includes(h);
+          c = cell("gc hcell" + (ok ? " full" : " z"), ok ? "✓" : "");
+        } else {
+          const n = availAt(d,h).length;
+          c = cell("gc hcell" + (n ? "" : " z"), String(n));
+          if (n && rs.length) c.style.background =
+            "rgba(var(--accent-rgb)," + (0.12 + 0.72 * (n / rs.length)).toFixed(3) + ")";
+          if (n >= T && n > 0) c.classList.add("full");
+        }
         if (pick && pick.d === d && pick.h === h) c.classList.add("pick");
         c.onclick = () => { pick = { d, h }; renderResult(); };
         g.appendChild(c);
       });
     });
   }
+
+  $("#heatHint").textContent = focusName
+    ? focusName + " 님이 가능한 시간만 보고 있습니다. 이름을 다시 누르면 전체로 돌아갑니다."
+    : "숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.";
 
   const det = $("#heatDetail");
   if (pick && ds.includes(pick.d)){
@@ -1163,6 +1264,8 @@ function renderResult(){
     det.querySelector(".b").textContent = no.length ? no.join(", ") : "없음";
     if (nts.length) det.querySelector(".c").textContent = nts.join(" / ");
   } else { det.className = ""; det.innerHTML = ""; }
+
+  renderArchive();
 
   const nd = [];
   rs.forEach(n => ds.forEach(d => { if ((notesOf()[n] || {})[d]) nd.push({ n, d, t: notesOf()[n][d] }); }));
@@ -1574,6 +1677,7 @@ function openSongForm(s){
 }
 function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; }
 
+$("#archHead").onclick   = () => { archOpen = !archOpen; renderArchive(); };
 $("#resortBtn").onclick  = () => { resortVotes(); renderSongs(); setStatus("좋아요 순으로 정렬했습니다", "ok"); };
 $("#songNew").onclick    = () => openSongForm(null);
 $("#songCancel").onclick = closeSongForm;
@@ -1784,7 +1888,7 @@ $("#histDelete").onclick = () => {
 };
 
 /* ═══════════════ 관리 — 날짜 달력 ═══════════════ */
-let dsel = new Set(), dateDirty = false, dateTimer = null;
+let dsel = new Set(), dateDirty = false, dateTimer = null, datePend = 0;
 /** 보고 있는 달. 로드 전에 ‹ › 를 눌러도 엉뚱한 연도로 가지 않게 이번 달로 미리 정해둔다. */
 let calY, calM;
 calToday_();
@@ -1800,13 +1904,21 @@ function calShift_(n){
 
 function syncDsel(){ if (!dateDirty) dsel = new Set(cfg().dates); }
 
-function dateChanged(){
-  dateDirty = true;
-  /* 저장을 기다리지 않고 일정·결과 화면에 바로 반영한다 (서버 응답은 뒤따라온다) */
+/** 지금 고른 날짜를 ST 에 그대로 반영한다. 여러 번 돌려도 결과가 같다(멱등). */
+function applyDates(){
   if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
   ST.config[B].dates = Array.from(dsel).sort();
+}
+
+function dateChanged(){
+  dateDirty = true;
+  /* 저장을 기다리지 않고 일정·결과 화면에 바로 반영한다 (서버 응답은 뒤따라온다).
+     ⚠️ 저장 응답이 오면 ST 를 통째로 갈아끼우므로, 그 사이 누른 것이 지워지지 않게
+     대기 목록에 걸어둔다. 이게 없으면 달력을 빠르게 누를 때 화면이 튕긴다. */
+  if (!datePend) datePend = pendAdd(applyDates);
+  applyDates();
   renderDateChips(); renderGrid(); renderNotes(); renderResult();
-  setStatus("날짜 변경됨 — 곧 저장됩니다");
+  setStatus("날짜 " + dsel.size + "일 — 곧 저장됩니다");
   clearTimeout(dateTimer);
   dateTimer = setTimeout(saveDates, 900);
 }
@@ -1818,7 +1930,10 @@ async function saveDates(){
   setStatus("날짜 후보 " + want.length + "일 · 저장 중…");     // 화면엔 이미 반영돼 있다
   try {
     ST = await api({ action:"config_set", band:B, dates: want.join(",") });
-    dateDirty = false;
+    if (Array.from(dsel).sort().join(",") === want.join(",")){   // 그 사이 또 눌렀으면 아직 진행 중
+      pendDone(datePend); datePend = 0; dateDirty = false;
+    }
+    pendReplay();
     applyConfig(); loadMine(); renderAll();
     setStatus("날짜 후보 " + want.length + "일 저장됨 ✓", "ok");
   } catch(e){ setStatus("날짜 저장 실패 — " + e.message, "err"); }
