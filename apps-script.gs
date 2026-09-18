@@ -41,10 +41,18 @@ var CONF_DEFAULT = { dates: '', hourStart: 9, hourEnd: 22, title: '' };
 
 /* ═══════════════ 시트 유틸 ═══════════════ */
 
-function ss_() { return SpreadsheetApp.openById(SHEET_ID); }
+/** 한 번의 실행 안에서는 같은 Spreadsheet 객체를 씁니다.
+ *  매번 openById 를 하면 방금 만든 탭이 안 보여서 같은 탭을 두 번 만들려다 실패합니다. */
+var _SS = null, _TAB = {};
+function ss_() {
+  if (!_SS) _SS = SpreadsheetApp.openById(SHEET_ID);
+  return _SS;
+}
 
 /** 헤더가 맞는 탭을 보장한다. 옛 탭은 이름만 바꿔 보존. */
 function tab_(key) {
+  if (_TAB[key]) return _TAB[key];
+
   var spec = TABS[key], ss = ss_(), sh = ss.getSheetByName(spec.name);
 
   if (sh) {
@@ -54,16 +62,25 @@ function tab_(key) {
     for (var i = 0; i < spec.head.length; i++) {
       if (String(head[i] || '').trim() !== spec.head[i]) { same = false; break; }
     }
-    if (same) return sh;
+    if (same) { _TAB[key] = sh; return sh; }
+
     var bak = spec.name + '_구버전';
     if (ss.getSheetByName(bak)) bak += '_' + Utilities.formatDate(new Date(), 'Asia/Seoul', 'MMddHHmm');
     sh.setName(bak);
     sh = null;
   }
 
-  sh = ss.insertSheet(spec.name);
-  sh.getRange(1, 1, 1, spec.head.length).setValues([spec.head]).setFontWeight('bold');
-  sh.setFrozenRows(1);
+  try {
+    sh = ss.insertSheet(spec.name);
+  } catch (err) {
+    sh = ss.getSheetByName(spec.name);      // 이미 있으면 그걸 쓴다
+    if (!sh) throw err;
+  }
+  if (sh.getLastRow() < 1 || String(sh.getRange(1,1).getValue() || '') !== spec.head[0]) {
+    sh.getRange(1, 1, 1, spec.head.length).setValues([spec.head]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  _TAB[key] = sh;
   return sh;
 }
 
