@@ -39,12 +39,14 @@ body{
 
 header{padding:22px 0 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:20px;letter-spacing:-.03em}
-.sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.sub{margin:2px 0 0;color:var(--muted);font-size:12.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .titlebtn{appearance:none;border:0;background:transparent;padding:0;text-align:left;
   color:inherit;font:inherit;cursor:pointer;min-width:0;flex:1 1 auto}
 .hact{display:flex;align-items:center;gap:7px;flex:0 0 auto}
 .iconbtn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--muted);
-  font:inherit;font-size:16px;line-height:1;width:36px;height:36px;border-radius:999px;cursor:pointer}
+  font:inherit;font-size:16px;line-height:1;width:42px;height:42px;border-radius:999px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center}
 .iconbtn:active{color:var(--accent);border-color:var(--accent)}
 .iconbtn.spin{animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -121,7 +123,8 @@ section[hidden],[hidden]{display:none}
 .calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 10px}
 .calhead .ym{font-weight:700;font-size:15.5px;letter-spacing:-.02em}
 .calhead .nav{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
-  font:inherit;font-size:17px;line-height:1;width:36px;height:36px;border-radius:9px;cursor:pointer}
+  font:inherit;font-size:17px;line-height:1;width:42px;height:42px;border-radius:9px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
   user-select:none;-webkit-user-select:none;touch-action:none}
 .cal .dowh{text-align:center;font-size:11.5px;color:var(--muted);padding:2px 0 4px}
@@ -160,10 +163,15 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 label.fld{display:block}
 label.fld>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
 
+/* 손가락으로 눌러도 옆·아래가 안 눌리게 — 모든 누를 수 있는 것은 최소 42px 높이.
+   touch-action:manipulation 은 더블탭 확대 대기(300ms)를 없앤다. */
+button, .chip, .btn, a.lnk, .cardhead, .menu button { touch-action: manipulation; }
+.btn, .chip{min-height:42px;display:inline-flex;align-items:center;justify-content:center}
+
 .btn{appearance:none;font:inherit;font-size:14px;font-weight:600;padding:9px 15px;
   border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.btn.ghost{border:0;background:transparent;color:var(--muted);padding:6px 8px;font-weight:500;font-size:13px}
+.btn.ghost{border:0;background:transparent;color:var(--muted);padding:10px 12px;font-weight:500;font-size:13.5px}
 .btn.danger{color:var(--warn)}
 .btn.sm{font-size:13px;padding:7px 12px}
 .btn:disabled{opacity:.45;cursor:default}
@@ -216,8 +224,9 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
 .item .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
 .item .body{margin-top:10px;font-size:13.5px;white-space:pre-wrap;line-height:1.55}
 .item .body .k{color:var(--muted);font-size:12px;display:block;margin-bottom:1px}
-.item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px;
-  border-top:1px solid var(--line);padding-top:10px}
+/* 여러 줄로 접힐 때 줄 사이가 붙어 있으면 아래 버튼이 눌린다. 줄 간격을 넉넉히. */
+.item .acts{display:flex;gap:10px 4px;flex-wrap:wrap;margin-top:11px;
+  border-top:1px solid var(--line);padding-top:8px}
 a.lnk{display:inline-flex;align-items:center;gap:5px;text-decoration:none;
   font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:999px;
   border:1px solid var(--line);color:var(--accent);background:var(--bg)}
@@ -251,8 +260,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 .item.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
 .item .det{margin-top:2px}
 
-.votebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;
-  border-top:1px solid var(--line);padding-top:10px}
+.votebar{display:flex;align-items:center;gap:10px 8px;flex-wrap:wrap;margin-top:11px;
+  border-top:1px solid var(--line);padding-top:8px}
 .votebar .tally{color:var(--muted);font-size:12.5px}
 .songpick{display:flex;flex-wrap:wrap;gap:6px}
 </style>
@@ -581,7 +590,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18n";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18o";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
