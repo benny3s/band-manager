@@ -55,6 +55,16 @@ var _SS = null, _SHEETS = null, _TAB = {}, _ROWS = {};
  * ─ 쓰기는 시트에 쓰고 캐시도 같은 내용으로 갱신합니다
  * ─ 시트를 손으로 고쳤다면 `fresh=1` 로 캐시를 무시하고 다시 읽습니다 (페이지의 '새로고침') */
 var CACHE_TTL = 21600;       // 6시간 (ScriptCache 최대값)
+/* 캐시 적중분은 수명만 다시 늘려준다(슬라이딩 만료). 누가 6시간 안에 한 번씩만 써도
+ * 캐시가 살아 있으니, 만료된 캐시를 만난 사람이 8개 탭을 전부 읽는 일(10초 이상)이 없다.
+ * 호출 끝에 putAll 한 번으로 모아서 쓴다. */
+var _TOUCH = {};
+function touchFlush_() {
+  var n = 0; for (var k in _TOUCH) n++;
+  if (!n) return;
+  try { cache_().putAll(_TOUCH, CACHE_TTL); } catch (e) {}
+  _TOUCH = {};
+}
 var _FRESH = false;
 function cache_() { return CacheService.getScriptCache(); }
 function ckey_(key) { return 'bm3_' + key; }
@@ -94,7 +104,11 @@ function open_(key) {
   if (!_FRESH) {                                   // 캐시 적중이면 시트를 열지 않는다
     var hit = cache_().get(ckey_(key));
     if (hit) {
-      try { _ROWS[key] = JSON.parse(hit); return _ROWS[key]; } catch (e) {}
+      try {
+        _ROWS[key] = JSON.parse(hit);
+        _TOUCH[ckey_(key)] = hit;                  // 쓴 지 6시간이 지나 만료되지 않게 수명을 늘린다
+        return _ROWS[key];
+      } catch (e) {}
     }
   }
 
@@ -377,7 +391,7 @@ function handle_(p) {
   var action = p.action || 'load';
   var pins = pinsOf_(p);
   if (p.fresh) { _FRESH = true; cache_().removeAll(keysAll_()); }   // 시트를 손으로 고쳤을 때
-  if (action === 'load') return state_(pins);
+  if (action === 'load') { var st = state_(pins); touchFlush_(); return st; }
 
   var lock = LockService.getScriptLock();
   try {
@@ -391,7 +405,7 @@ function handle_(p) {
     // PIN 을 방금 바꿨으면 그 값으로 응답해야 화면이 잠기지 않는다
     if (p.setpin !== undefined) pins[String(p.band || '')] = String(p.setpin).trim();
     SpreadsheetApp.flush();
-    return state_(pins);
+    var out = state_(pins); touchFlush_(); return out;
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
   }
