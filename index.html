@@ -581,7 +581,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18i";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18j";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -715,21 +715,42 @@ function snapLoad(){
   } catch(e){ return false; }
 }
 
+let lastMs = 0;                       // 마지막 서버 왕복 시간 (화면 아래에 찍는다)
+
+/** 오래 걸릴 때 몇 초째인지 보여준다. 가만히 도는 것보다 덜 답답하고,
+ *  구글 쪽이 깨어나는 중인지(=10초 넘음) 바로 알 수 있다. */
+function waitTicker(base){
+  const t0 = Date.now();
+  const id = setInterval(() => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    if (s < 3) return;
+    setStatus(base + " " + s + "초" + (s >= 10 ? " · 구글 서버가 깨어나는 중입니다" : ""));
+    if (s >= 10) $("#refreshBtn").classList.remove("spin");   // 멈춘 것처럼 보이지 않게
+  }, 1000);
+  return () => clearInterval(id);
+}
+
 async function load(fresh){
   const had = !!ST.bands.length;      // 저장해 둔 화면이 이미 떠 있나
-  setStatus(fresh ? "시트에서 다시 읽는 중…" : (had ? "최신 확인 중…" : "불러오는 중…"));
+  const base = fresh ? "시트에서 다시 읽는 중…" : (had ? "최신 확인 중…" : "불러오는 중…");
+  setStatus(base);
   $("#refreshBtn").classList.add("spin");
+  const stop = waitTicker(base);
+  const t0 = Date.now();
   try {
     ST = await api(fresh ? { action:"load", fresh:1 } : { action:"load" });
+    lastMs = Date.now() - t0;
     if (!ST.bands.length) { setStatus("밴드가 없습니다", "err"); return; }
     const want = localStorage.getItem("bm_band");
     B = ST.bands.some(b => b.id === want) ? want : ST.bands[0].id;
     pickBand(B, true);
     snapSave();
-    setStatus("최신 상태", "ok");
+    setStatus("최신 상태 · " + (lastMs / 1000).toFixed(1) + "초", "ok");
   } catch(e){
+    lastMs = Date.now() - t0;
     setStatus((had ? "저장해 둔 화면입니다 — " : "불러오기 실패 — ") + e.message, "err");
   } finally {
+    stop();
     $("#refreshBtn").classList.remove("spin");
   }
 }
@@ -788,7 +809,7 @@ function renderAll(){
     document.title = t + " — 밴드매니저";
     $("#subtitle").textContent = t + " · PIN을 넣으면 열립니다";
     $("#lockTitle").textContent = t;
-    $("#foot").textContent = "밴드매니저 " + BUILD;
+    $("#foot").textContent = "밴드매니저 " + BUILD + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
     return;
   }
 
@@ -805,7 +826,7 @@ function renderAll(){
   bits.push(n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
               : "날짜 후보가 아직 없습니다");
   $("#subtitle").textContent = bits.join(" · ");
-  $("#foot").textContent = "밴드매니저 " + BUILD;
+  $("#foot").textContent = "밴드매니저 " + BUILD + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
   show(view);
 }
 
