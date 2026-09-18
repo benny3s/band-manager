@@ -207,7 +207,9 @@ table.sum .a{color:var(--muted);font-size:11.5px;display:block;margin-top:1px;
 table.sum td.n{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
 table.sum td.n b{color:var(--ink);font-weight:700}
 table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
-.item.flash{outline:2px solid var(--accent);outline-offset:2px;transition:outline-color .8s ease}
+table.sum td.go{color:var(--muted);text-align:right;font-size:15px;line-height:1.2;opacity:.55;padding-left:0}
+table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
+.item.flash{outline:2px solid var(--accent);outline-offset:2px}
 
 .votebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;
   border-top:1px solid var(--line);padding-top:10px}
@@ -226,7 +228,20 @@ table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
     <div class="chips" id="bandBar"></div>
   </header>
 
-  <div class="tabs" role="tablist">
+  <section id="view-lock" hidden>
+    <div class="card" style="text-align:center;padding:30px 18px">
+      <div style="font-size:30px;line-height:1">🔒</div>
+      <h2 style="margin:12px 0 4px;font-size:17px" id="lockTitle">잠긴 밴드입니다</h2>
+      <p class="hint" style="margin:0 0 18px">단톡방에 공유된 PIN을 넣어주세요.</p>
+      <div class="row" style="justify-content:center">
+        <input type="text" id="lockPin" inputmode="numeric" autocomplete="off"
+               placeholder="PIN" style="flex:0 1 150px;text-align:center;letter-spacing:.3em">
+        <button class="btn primary" id="lockGo">열기</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist" id="tabbar">
     <button role="tab" id="tab-answer" aria-selected="true">일정</button>
     <button role="tab" id="tab-result" aria-selected="false">결과</button>
     <button role="tab" id="tab-song"   aria-selected="false">곡</button>
@@ -482,6 +497,20 @@ table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
     </div>
 
     <div class="card">
+      <h2>이 밴드 PIN</h2>
+      <p class="hint" id="pinState"></p>
+      <div class="row">
+        <input type="text" id="pinInput" inputmode="numeric" autocomplete="off"
+               placeholder="새 PIN (비우면 해제)" style="flex:1 1 150px">
+        <button class="btn" id="pinSave">저장</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">
+        PIN을 걸면 <b>서버가 이 밴드 데이터를 아예 안 내려줍니다.</b>
+        멤버는 처음 한 번만 넣으면 그 기기에 기억됩니다.
+      </p>
+    </div>
+
+    <div class="card">
       <h2>기타</h2>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="copyLink">링크 복사</button>
@@ -507,11 +536,24 @@ const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
    fetch 는 그 리다이렉트에서 CORS 로 멈춥니다. JSONP 만 씁니다. */
+/* 이 기기가 알고 있는 밴드별 PIN. 서버가 이걸 보고 데이터를 내려줄지 정한다. */
+function pinGet(id){ try { return localStorage.getItem("bm_pin:" + id) || ""; } catch(e){ return ""; } }
+function pinSet(id, v){
+  try { v ? localStorage.setItem("bm_pin:" + id, v) : localStorage.removeItem("bm_pin:" + id); } catch(e){}
+}
+function pinMap(){
+  const m = {};
+  (ST.bands || []).forEach(b => { const v = pinGet(b.id); if (v) m[b.id] = v; });
+  const cur = pinGet(B); if (B && cur) m[B] = cur;
+  return m;
+}
+
 function api(params){
   return new Promise((resolve, reject) => {
     const cb = "__jp" + Math.random().toString(36).slice(2);
     const s  = document.createElement("script");
-    const q  = new URLSearchParams(Object.assign({}, params, { callback: cb }));
+    const q  = new URLSearchParams(Object.assign({ pins: JSON.stringify(pinMap()) },
+                                                 params, { callback: cb }));
     const done = () => {
       try { delete window[cb]; } catch(e){ window[cb] = undefined; }
       s.remove(); clearTimeout(t);
@@ -623,8 +665,27 @@ function answered(name){
 }
 
 /* ═══════════════ 렌더 ═══════════════ */
+function curBand(){ return ST.bands.find(b => b.id === B) || null; }
+function isLocked(){ const b = curBand(); return !!(b && b.locked); }
+
 function renderAll(){
   renderBands();
+
+  const locked = isLocked(), band = curBand();
+  $("#view-lock").hidden = !locked;
+  $("#tabbar").hidden = locked;
+  if (locked){
+    for (const k in VIEWS) $(VIEWS[k]).hidden = true;
+    $("#saveBtn").hidden = true;
+    const t = band ? band.name : "밴드매니저";
+    $("#title").textContent = t;
+    document.title = t + " — 밴드매니저";
+    $("#subtitle").textContent = "PIN을 넣으면 열립니다";
+    $("#lockTitle").textContent = t;
+    $("#foot").textContent = "밴드매니저 · benny3s.github.io";
+    return;
+  }
+
   renderMembers();
   renderGrid();
   renderNotes();
@@ -957,13 +1018,13 @@ function voteTally(id){
 const SONG_VIEWS = [
   { key:"연습중", tab:"지금 하는 곡", head:"지금 하는 곡", has:["연습중"],
     hint:"합주에서 실제로 맞춰보고 있는 곡", empty:"아직 없습니다. 후보곡에서 올리거나 곡을 추가하세요.",
-    cols:["곡", "키", "합주"] },
+    cols:["곡", "키"] },
   { key:"후보",   tab:"후보곡 투표",  head:"후보곡 투표", has:["후보"],
     hint:"다음에 뭘 할지 고르는 중. 좋아요 많은 순", empty:"후보곡이 없습니다. 곡 추가를 눌러 올려보세요.",
     cols:["곡", "선곡자", "좋아요"] },
   { key:"지난",   tab:"지난 곡",      head:"지난 곡",     has:["완료","보류"],
     hint:"끝냈거나 잠시 접어둔 곡", empty:"아직 없습니다.",
-    cols:["곡", "상태", "합주"] }
+    cols:["곡", "상태"] }
 ];
 let songView = "연습중";
 
@@ -1019,7 +1080,7 @@ function renderSongs(){
     return;
   }
 
-  renderSongSummary(list, spec, stats);
+  renderSongSummary(list, spec);
   list.forEach(s => {
     const card = songCard(s, stats[s.id]);
     card.id = "song-" + s.id;
@@ -1027,8 +1088,9 @@ function renderSongs(){
   });
 }
 
-/** 곡 목록 맨 위 요약표. 현재 세그먼트에 맞춰 열이 바뀐다. */
-function renderSongSummary(list, spec, stats){
+/** 곡 목록 맨 위 요약표. 현재 세그먼트에 맞춰 열이 바뀐다.
+ *  줄을 누르면 아래 그 곡 카드로 내려간다(맨 끝 › 로 눌러진다는 걸 보여준다). */
+function renderSongSummary(list, spec){
   const t = $("#songSum");
   t.innerHTML = "";
 
@@ -1037,10 +1099,11 @@ function renderSongSummary(list, spec, stats){
   spec.cols.forEach((c, i) => {
     const th = document.createElement("th");
     th.textContent = c;
-    if (i === 1) th.style.width = "88px";
-    if (i === 2) { th.className = "n"; th.style.width = "58px"; }
+    if (i === 1) th.style.width = songView === "후보" ? "74px" : "96px";
+    if (i === 2) { th.className = "n"; th.style.width = "56px"; }
     hr.appendChild(th);
   });
+  hr.appendChild(document.createElement("th")).style.width = "18px";   // › 자리
   thead.appendChild(hr); t.appendChild(thead);
 
   const tb = document.createElement("tbody");
@@ -1054,31 +1117,32 @@ function renderSongSummary(list, spec, stats){
       const aa = document.createElement("span"); aa.className = "a"; aa.textContent = s.artist;
       c1.appendChild(aa);
     }
+    tr.appendChild(c1);
 
     const c2 = document.createElement("td"); c2.className = "mid";
     c2.textContent = songView === "후보" ? (s.picker || "—")
                    : songView === "지난" ? s.status
                    : (s.key || "—");
+    tr.appendChild(c2);
 
-    const c3 = document.createElement("td"); c3.className = "n";
-    if (songView === "후보"){
+    if (songView === "후보"){                       // 투표 화면에서만 숫자 열
       const tal = voteTally(s.id);
+      const c3 = document.createElement("td"); c3.className = "n";
       c3.innerHTML = "<b></b>";
       c3.querySelector("b").textContent = String(tal.up.length);
       if (tal.down.length) c3.append(" / " + tal.down.length);
-    } else {
-      const n = stats[s.id] ? stats[s.id].n : 0;
-      if (n){ c3.innerHTML = "<b></b>회"; c3.querySelector("b").textContent = String(n); }
-      else c3.textContent = "—";
+      tr.appendChild(c3);
     }
 
-    tr.append(c1, c2, c3);
+    const go = document.createElement("td"); go.className = "go"; go.textContent = "›";
+    tr.appendChild(go);
+
     tr.onclick = () => {
       const el = document.getElementById("song-" + s.id);
       if (!el) return;
-      el.scrollIntoView({ behavior:"smooth", block:"center" });
+      el.scrollIntoView({ behavior:"smooth", block:"start" });
       el.classList.add("flash");
-      setTimeout(() => el.classList.remove("flash"), 1400);
+      setTimeout(() => el.classList.remove("flash"), 1600);
     };
     tb.appendChild(tr);
   });
@@ -1570,6 +1634,11 @@ function renderAdmin(){
     li.append(s, r, x); ml.appendChild(li);
   });
 
+  const cb = curBand();
+  $("#pinState").textContent = cb && cb.hasPin
+    ? "PIN이 걸려 있습니다. 바꾸려면 새 PIN을 넣고 저장하세요."
+    : "PIN 없음 — 링크를 아는 누구나 볼 수 있습니다.";
+
   const bl = $("#bandList"); bl.innerHTML = "";
   ST.bands.forEach(b => {
     const li = document.createElement("li");
@@ -1606,6 +1675,12 @@ async function act(params, okMsg){
     absorb();
     setStatus(okMsg || "완료", "ok");
   } catch(e){
+    if (/PIN/.test(e.message)){                    // PIN 이 바뀌었다 → 다시 물어본다
+      pinSet(B, "");
+      try { ST = await api({ action:"load" }); absorb(); } catch(e3){}
+      setStatus("PIN이 맞지 않습니다", "err");
+      return;
+    }
     // 요청이 서버에는 닿았는데 응답만 못 받았을 수 있다. 최신 상태를 다시 받아 확인한다.
     setStatus("응답이 늦습니다 — 반영됐는지 확인 중…");
     try {
@@ -1636,6 +1711,49 @@ $("#hourSave").onclick = () => act({
   action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value
 }, "시간 범위 저장됨");
 $("#titleSave").onclick = () => act({ action:"config_set", band:B, title: $("#titleInput").value }, "제목 저장됨");
+/* ═══════════════ PIN ═══════════════ */
+async function unlock(){
+  const v = $("#lockPin").value.trim();
+  if (!v){ setStatus("PIN을 넣어주세요", "err"); return; }
+  const old = pinGet(B);
+  pinSet(B, v);
+  setStatus("확인 중…");
+  try {
+    ST = await api({ action:"load" });
+    if (isLocked()){
+      pinSet(B, old);
+      renderAll();
+      setStatus("PIN이 맞지 않습니다", "err");
+      return;
+    }
+    $("#lockPin").value = "";
+    absorb();
+    setStatus("열렸습니다 ✓", "ok");
+  } catch(e){
+    pinSet(B, old);
+    setStatus("실패 — " + e.message, "err");
+  }
+}
+$("#lockGo").onclick = unlock;
+$("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
+
+$("#pinSave").onclick = async () => {
+  const v = $("#pinInput").value.trim();
+  if (v && !/^[0-9A-Za-z]{2,20}$/.test(v)){ setStatus("PIN은 숫자·영문 2~20자", "err"); return; }
+  if (!v && !confirm("PIN을 해제하면 링크를 아는 누구나 볼 수 있습니다. 계속할까요?")) return;
+  setStatus("저장 중…");
+  try {
+    // 저장해 둔 PIN(있으면)으로 인증한다. 새 PIN 은 서버가 응답에 반영해준다.
+    ST = await api({ action:"config_set", band:B, setpin:v });
+    pinSet(B, v);                                  // 성공한 뒤에 바꾼다
+    $("#pinInput").value = "";
+    absorb();
+    setStatus(v ? "PIN 설정됨 ✓ — 멤버들에게 알려주세요" : "PIN 해제됨", "ok");
+  } catch(e){
+    setStatus("실패 — " + e.message, "err");
+  }
+};
+
 $("#copyLink").onclick = async () => {
   const url = location.origin + location.pathname;
   try { await navigator.clipboard.writeText(url); setStatus("링크 복사됨 — " + url, "ok"); }

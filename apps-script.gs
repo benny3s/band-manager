@@ -235,8 +235,32 @@ function bands_() {
   return list;
 }
 
-function state_() {
+/* ─── 밴드 PIN ───────────────────────────────────────────────
+ * 설정 탭의 `pin` 키에 저장한다. PIN 이 걸린 밴드는
+ * 맞는 PIN 을 보내지 않으면 **데이터를 아예 내려주지 않는다**(state_ 에서 제외).
+ * 쓰기도 마찬가지로 막는다. 클라이언트는 `pins` 에 {밴드id: pin} 을 담아 보낸다. */
+function pinsOf_(p) {
+  try { return JSON.parse(p.pins || '{}') || {}; } catch (e) { return {}; }
+}
+
+function bandPin_(bandId) {
+  var cs = rows_('conf');
+  for (var i = 0; i < cs.length; i++) {
+    if (cs[i]['밴드'] === bandId && cs[i]['key'] === 'pin') return String(cs[i]['value'] || '');
+  }
+  return '';
+}
+
+function allowed_(bandId, pins) {
+  var need = bandPin_(bandId);
+  if (!need) return true;
+  return String(pins[bandId] == null ? '' : pins[bandId]) === need;
+}
+
+function state_(pins) {
+  pins = pins || {};
   var bl = bands_();
+  var open = {};                                   // 열려 있는(= 데이터를 내려줄) 밴드
   var out = {
     ok: true,
     bands: [], members: {}, config: {}, hours: {}, notes: {},
@@ -246,7 +270,10 @@ function state_() {
 
   for (var i = 0; i < bl.length; i++) {
     var b = bl[i].id;
-    out.bands.push({ id: b, name: bl[i]['이름'] });
+    var has = !!bandPin_(b);
+    var ok  = allowed_(b, pins);
+    if (ok) open[b] = true;
+    out.bands.push({ id: b, name: bl[i]['이름'], hasPin: has, locked: !ok });
     out.members[b] = [];
     out.config[b] = { dates: [], hourStart: CONF_DEFAULT.hourStart,
                       hourEnd: CONF_DEFAULT.hourEnd, title: bl[i]['이름'] };
@@ -257,13 +284,13 @@ function state_() {
   var ms = rows_('member'), i2;
   for (i2 = 0; i2 < ms.length; i2++) {
     var mb = ms[i2]['밴드'];
-    if (out.members[mb]) out.members[mb].push(ms[i2]['이름']);
+    if (open[mb] && out.members[mb]) out.members[mb].push(ms[i2]['이름']);
   }
 
   var cs = rows_('conf');
   for (i2 = 0; i2 < cs.length; i2++) {
     var cb = cs[i2]['밴드'], k = cs[i2]['key'], v = cs[i2]['value'];
-    if (!out.config[cb]) continue;
+    if (!out.config[cb] || !open[cb]) continue;    // pin 값은 어차피 아래에서 안 읽는다
     if (k === 'dates') {
       var ds = splitList_(v), keep = [], seen = {};
       for (var d = 0; d < ds.length; d++) {
@@ -280,7 +307,7 @@ function state_() {
   var rs = rows_('resp');
   for (i2 = 0; i2 < rs.length; i2++) {
     var rb = rs[i2]['밴드'], rn = rs[i2]['이름'], rd = normDate_(rs[i2]['날짜']);
-    if (!out.hours[rb] || !rn || !rd) continue;
+    if (!out.hours[rb] || !open[rb] || !rn || !rd) continue;
     var hh = parseHours_(rs[i2]['시간']);
     if (hh === null) continue;
     if (!out.hours[rb][rn]) out.hours[rb][rn] = {};
@@ -290,7 +317,7 @@ function state_() {
   var ns = rows_('note');
   for (i2 = 0; i2 < ns.length; i2++) {
     var nb = ns[i2]['밴드'], nn = ns[i2]['이름'], ndd = normDate_(ns[i2]['날짜']);
-    if (!out.notes[nb] || !nn || !ndd || !ns[i2]['메모']) continue;
+    if (!out.notes[nb] || !open[nb] || !nn || !ndd || !ns[i2]['메모']) continue;
     if (!out.notes[nb][nn]) out.notes[nb][nn] = {};
     out.notes[nb][nn][ndd] = ns[i2]['메모'];
   }
@@ -298,6 +325,7 @@ function state_() {
   var ss = rows_('song');
   for (i2 = 0; i2 < ss.length; i2++) {
     var s = ss[i2];
+    if (!open[s['밴드']]) continue;
     out.songs.push({
       id: s.id, band: s['밴드'], status: s['상태'] || '후보',
       title: s['제목'], artist: s['아티스트'], key: s['키'], picker: s['선곡자'],
@@ -309,6 +337,7 @@ function state_() {
   var hs = rows_('hist');
   for (i2 = 0; i2 < hs.length; i2++) {
     var h = hs[i2];
+    if (!open[h['밴드']]) continue;
     out.hist.push({
       id: h.id, band: h['밴드'], date: normDate_(h['날짜']),
       from: h['시작'], to: h['종료'], place: h['합주실'], room: h['룸'],
@@ -321,7 +350,7 @@ function state_() {
   var vs = rows_('vote');
   for (i2 = 0; i2 < vs.length; i2++) {
     var vsid = vs[i2]['곡'], vn = vs[i2]['이름'];
-    if (!vsid || !vn) continue;
+    if (!vsid || !vn || !open[vs[i2]['밴드']]) continue;
     if (!out.votes[vsid]) out.votes[vsid] = {};
     out.votes[vsid][vn] = parseInt(vs[i2]['값'], 10) || 0;
   }
@@ -333,16 +362,23 @@ function state_() {
 
 function handle_(p) {
   var action = p.action || 'load';
+  var pins = pinsOf_(p);
   if (p.fresh) { _FRESH = true; cache_().removeAll(keysAll_()); }   // 시트를 손으로 고쳤을 때
-  if (action === 'load') return state_();
+  if (action === 'load') return state_(pins);
 
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(25000);
+    // 밴드가 걸린 동작은 그 밴드의 PIN 을 알아야 한다 (band_add 는 대상 밴드가 없다)
+    if (action !== 'band_add' && !allowed_(String(p.band || ''), pins)) {
+      return { ok: false, error: 'PIN이 맞지 않습니다' };
+    }
     var r = act_(action, p);
     if (r && r.ok === false) return r;
+    // PIN 을 방금 바꿨으면 그 값으로 응답해야 화면이 잠기지 않는다
+    if (p.setpin !== undefined) pins[String(p.band || '')] = String(p.setpin).trim();
     SpreadsheetApp.flush();
-    return state_();
+    return state_(pins);
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
   }
@@ -439,6 +475,7 @@ function act_(action, p) {
     if (p.hourStart !== undefined) set('hourStart', clampHour_(p.hourStart, CONF_DEFAULT.hourStart));
     if (p.hourEnd   !== undefined) set('hourEnd',   clampHour_(p.hourEnd,   CONF_DEFAULT.hourEnd));
     if (p.title     !== undefined) set('title', String(p.title).slice(0, 60));
+    if (p.setpin    !== undefined) set('pin',   String(p.setpin).trim().slice(0, 20));
     put_('conf', list);
     return;
   }
