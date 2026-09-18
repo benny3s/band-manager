@@ -66,6 +66,7 @@ h1{margin:0;font-size:20px;letter-spacing:-.03em}
 .menu button:hover{background:var(--soft)}
 .menu button[aria-selected="true"]{color:var(--accent);font-weight:700}
 .menu .tail{margin-left:auto;font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.menu .note{padding:12px 14px;color:var(--muted);font-size:13px}
 
 .tabs{display:flex;gap:3px;margin:12px 0 16px;background:var(--card);
   border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto}
@@ -238,6 +239,14 @@ table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
 table.sum td.go{color:var(--muted);text-align:right;font-size:15px;line-height:1.2;opacity:.55;padding-left:0}
 table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 .item.flash{outline:2px solid var(--accent);outline-offset:2px}
+/* 접히는 카드 */
+.cardhead{display:flex;width:100%;align-items:flex-start;gap:10px;appearance:none;border:0;
+  background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:0}
+.cardhead .hgrow{flex:1 1 auto;min-width:0}
+.cardhead .caret{flex:0 0 auto;color:var(--muted);font-size:11px;margin-top:5px;
+  transition:transform .15s ease}
+.item.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
+.item .det{margin-top:2px}
 
 .votebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;
   border-top:1px solid var(--line);padding-top:10px}
@@ -569,7 +578,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18f";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18h";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -587,14 +596,32 @@ function pinMap(){
 }
 
 /** 같은 요청을 한 번 더 보내도 괜찮은 것들 — 끊기면 자동으로 한 번 재시도한다 */
-async function api(params){
-  const safe = !params.action || params.action === "load";
-  try { return await once(params); }
-  catch(e){
-    if (!safe || !/네트워크|응답이 없습니다/.test(e.message)) throw e;
-    await new Promise(r => setTimeout(r, 700));
-    return once(params);
+/** 한 번에 한 요청만 보낸다.
+ *  Apps Script 는 동시에 여러 번 부르면 잠금 대기/할당량으로 실패하기 쉽다.
+ *  (자동저장 + 다른 조작이 겹치면 '네트워크 오류' 가 뜨던 원인) */
+let _chain = Promise.resolve();
+function api(params){
+  const run = () => tries(params);
+  const p = _chain.then(run, run);      // 앞 요청이 실패해도 이어서 보낸다
+  _chain = p.catch(() => {});           // 체인 자체는 에러를 삼킨다
+  return p;
+}
+
+/** 같은 요청을 한 번 더 보내도 결과가 같은 것들 — 끊기면 두 번까지 자동 재시도 */
+const SAFE = ["load", "config_set", "save", "vote_set"];
+async function tries(params){
+  const safe = !params.action || SAFE.indexOf(params.action) >= 0;
+  const n = safe ? 3 : 1;
+  let last;
+  for (let i = 0; i < n; i++){
+    if (i) await new Promise(r => setTimeout(r, 700 * i));
+    try { return await once(params); }
+    catch(e){
+      last = e;
+      if (!/네트워크|응답이 없습니다/.test(e.message)) throw e;
+    }
   }
+  throw last;
 }
 
 function once(params){
@@ -661,17 +688,46 @@ function setStatus(msg, cls){
 
 /* ═══════════════ 로드 ═══════════════ */
 /** fresh=true 면 서버 캐시를 버리고 스프레드시트를 직접 다시 읽는다 (시트를 손으로 고쳤을 때) */
+/* ── 마지막으로 본 화면을 이 기기에 저장해 둔다 ────────────────────────
+   서버 왕복이 2~5초라 그동안 빈 화면(밴드 목록도 비어 있음)이었다.
+   저장해 둔 걸 즉시 그려놓고, 뒤에서 최신을 받아 덮어쓴다.            */
+const SNAP_KEY = "bm_snap";
+const SNAP_TTL = 12 * 3600 * 1000;      // 12시간 지나면 안 쓴다
+
+function snapSave(){
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ t: Date.now(), b: B, st: ST })); }
+  catch(e){}
+}
+function snapLoad(){
+  try {
+    const c = JSON.parse(localStorage.getItem(SNAP_KEY) || "null");
+    if (!c || !c.st || !(c.st.bands || []).length) return false;
+    if (Date.now() - (c.t || 0) > SNAP_TTL) return false;
+    ST = c.st;
+    const want = localStorage.getItem("bm_band");
+    const has  = id => ST.bands.some(b => b.id === id);
+    B = has(want) ? want : (has(c.b) ? c.b : ST.bands[0].id);
+    pickBand(B, true);
+    return true;
+  } catch(e){ return false; }
+}
+
 async function load(fresh){
-  setStatus(fresh ? "시트에서 다시 읽는 중…" : "불러오는 중…");
+  const had = !!ST.bands.length;      // 저장해 둔 화면이 이미 떠 있나
+  setStatus(fresh ? "시트에서 다시 읽는 중…" : (had ? "최신 확인 중…" : "불러오는 중…"));
+  $("#refreshBtn").classList.add("spin");
   try {
     ST = await api(fresh ? { action:"load", fresh:1 } : { action:"load" });
     if (!ST.bands.length) { setStatus("밴드가 없습니다", "err"); return; }
     const want = localStorage.getItem("bm_band");
     B = ST.bands.some(b => b.id === want) ? want : ST.bands[0].id;
     pickBand(B, true);
+    snapSave();
     setStatus("최신 상태", "ok");
   } catch(e){
-    setStatus("불러오기 실패 — " + e.message, "err");
+    setStatus((had ? "저장해 둔 화면입니다 — " : "불러오기 실패 — ") + e.message, "err");
+  } finally {
+    $("#refreshBtn").classList.remove("spin");
   }
 }
 
@@ -761,9 +817,19 @@ function closeBandMenu(){ setBandMenu(false); }
 
 function renderBands(){
   const cur = ST.bands.find(b => b.id === B);
-  $("#bandName").textContent = cur ? cur.name : "밴드";
-
   const box = $("#bandMenu"); box.innerHTML = "";
+
+  /* 아직 못 불러왔으면 목록이 비어 있다. 눌렀을 때 아무 일도 안 일어나면
+     고장 난 줄 알게 되므로 '불러오는 중' 이라고 알려준다 */
+  if (!ST.bands.length){
+    $("#bandName").textContent = "불러오는 중";
+    const n = document.createElement("div");
+    n.className = "note"; n.textContent = "밴드 목록을 불러오는 중…";
+    box.appendChild(n);
+    return;
+  }
+
+  $("#bandName").textContent = cur ? cur.name : "밴드";
   ST.bands.forEach(b => {
     const el = document.createElement("button");
     el.type = "button";
@@ -794,11 +860,7 @@ $("#bandBack").addEventListener("click", closeBandMenu);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeBandMenu(); });
 
 /** 제목·↻ 를 누르면 시트에서 다시 읽는다 (모바일에서 당겨서 새로고침도 됨) */
-async function refresh(){
-  const ic = $("#refreshBtn");
-  ic.classList.add("spin");
-  try { await load(true); } finally { ic.classList.remove("spin"); }
-}
+async function refresh(){ await load(true); }   /* 회전 표시는 load 가 한다 */
 $("#refreshBtn").onclick = refresh;
 $("#titleBtn").onclick   = refresh;
 
@@ -1225,6 +1287,8 @@ function renderSongSummary(list, spec){
     tr.appendChild(go);
 
     tr.onclick = () => {
+      openCards.add("s:" + s.id);        // 카드를 펼친 채로 내려간다
+      renderSongs();
       const el = document.getElementById("song-" + s.id);
       if (!el) return;
       el.scrollIntoView({ behavior:"smooth", block:"start" });
@@ -1236,18 +1300,43 @@ function renderSongSummary(list, spec){
   t.appendChild(tb);
 }
 
+/* 카드는 기본으로 접혀 있다. 머리(제목 줄)를 누르면 펼쳐진다.
+   어떤 카드를 펼쳐놨는지는 다시 그려도 그대로 유지된다. */
+const openCards = new Set();
+function foldable(el, key, headNodes){
+  const open = openCards.has(key);
+  el.classList.toggle("on", open);
+
+  const head = document.createElement("button");
+  head.type = "button"; head.className = "cardhead";
+  const grow = document.createElement("div"); grow.className = "hgrow";
+  headNodes.filter(Boolean).forEach(n => grow.appendChild(n));
+  const car = document.createElement("span"); car.className = "caret"; car.textContent = "▼";
+  head.append(grow, car);
+
+  const det = document.createElement("div"); det.className = "det"; det.hidden = !open;
+  head.onclick = () => {
+    const now = det.hidden;
+    det.hidden = !now;
+    el.classList.toggle("on", now);
+    now ? openCards.add(key) : openCards.delete(key);
+  };
+  el.append(head, det);
+  return det;                       // 상세 내용은 여기에 담는다
+}
+
 function songCard(s, stat){
   const el = document.createElement("div"); el.className = "item";
 
   const t = document.createElement("div"); t.className = "ttl"; t.textContent = s.title;
-  el.appendChild(t);
 
   const metaBits = [s.artist, s.picker ? "선곡 " + s.picker : ""].filter(Boolean);
+  let m = null;
   if (metaBits.length){
-    const m = document.createElement("div"); m.className = "meta";
+    m = document.createElement("div"); m.className = "meta";
     m.textContent = metaBits.join(" · ");
-    el.appendChild(m);
   }
+  const det = foldable(el, "s:" + s.id, [t, m]);
 
   const badges = document.createElement("div"); badges.className = "badges";
   const addPill = (txt, cls) => {
@@ -1259,7 +1348,7 @@ function songCard(s, stat){
   addPill(s.key, "");
   addPill(s.tuning, "amber");
   if (stat) addPill("합주 " + stat.n + "회 · " + fmtD(stat.first) + " 첫 합주", "grey");
-  if (badges.children.length) el.appendChild(badges);
+  if (badges.children.length) det.appendChild(badges);
 
   const links = parseLinks(s.links);
   if (links.length){
@@ -1270,7 +1359,7 @@ function songCard(s, stat){
       a.textContent = l.label;
       lb.appendChild(a);
     });
-    el.appendChild(lb);
+    det.appendChild(lb);
   }
 
   if (s.parts || s.memo){
@@ -1285,7 +1374,7 @@ function songCard(s, stat){
       k2.style.marginTop = "8px";
       bd.appendChild(k2); bd.appendChild(document.createTextNode(s.memo));
     }
-    el.appendChild(bd);
+    det.appendChild(bd);
   }
 
   if (s.status === "후보"){
@@ -1305,7 +1394,7 @@ function songCard(s, stat){
         (tal.down.length ? " · 별로 " + tal.down.length : "")
       : "아직 투표 없음";
     vb.appendChild(tt);
-    el.appendChild(vb);
+    el.appendChild(vb);          /* 투표는 접혀 있어도 바로 누를 수 있게 카드 밖에 둔다 */
   }
 
   const acts = document.createElement("div"); acts.className = "acts";
@@ -1319,7 +1408,7 @@ function songCard(s, stat){
   ed.className = "btn ghost"; ed.textContent = "수정";
   ed.onclick = () => openSongForm(s);
   acts.appendChild(ed);
-  el.appendChild(acts);
+  det.appendChild(acts);
 
   return el;
 }
@@ -1392,15 +1481,18 @@ function renderHist(){
   const box = $("#histList"); box.innerHTML = "";
   if (!list.length){ box.innerHTML = '<div class="empty">회차 추가를 눌러 시작하세요.</div>'; return; }
 
+  /* 위가 옛날, 아래가 최신 (2026-09-18 Benny 요청) */
+  const asc = list.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
   // (NEW) 계산: 오래된 순으로 누적
   const seen = new Set(), newOf = {};
-  list.slice().reverse().forEach(h => {
+  asc.forEach(h => {
     if (h.status === "취소") { newOf[h.id] = []; return; }
     newOf[h.id] = h.songs.filter(id => !seen.has(id));
     h.songs.forEach(id => seen.add(id));
   });
 
-  list.forEach(h => box.appendChild(histCard(h, newOf[h.id] || [])));
+  asc.forEach(h => box.appendChild(histCard(h, newOf[h.id] || [])));
 }
 
 function histCard(h, fresh){
@@ -1415,16 +1507,18 @@ function histCard(h, fresh){
   st.className = "pill " + (h.status === "취소" ? "warn" : h.status === "예정" ? "grey" : "");
   st.textContent = h.status;
   top.appendChild(st);
-  el.appendChild(top);
 
+  /* 접혀 있을 때도 시간·합주실·곡 수는 보이게 한다 */
   const bits = [];
   if (h.from || h.to) bits.push((h.from || "") + (h.to ? "~" + h.to : ""));
   if (h.place) bits.push(h.place);
   if (h.room)  bits.push(h.room);
+  if (h.songs.length) bits.push("곡 " + h.songs.length);
+  let m = null;
   if (bits.length){
-    const m = document.createElement("div"); m.className = "meta"; m.textContent = bits.join(" · ");
-    el.appendChild(m);
+    m = document.createElement("div"); m.className = "meta"; m.textContent = bits.join(" · ");
   }
+  const det = foldable(el, "h:" + h.id, [top, m]);
 
   if (h.songs.length){
     const sb = document.createElement("div"); sb.className = "body";
@@ -1437,7 +1531,7 @@ function histCard(h, fresh){
       if (fresh.includes(id)) line.style.color = "var(--accent)";
       sb.appendChild(line);
     });
-    el.appendChild(sb);
+    det.appendChild(sb);
   }
 
   if (h.absent.length || h.memo){
@@ -1451,7 +1545,7 @@ function histCard(h, fresh){
       const k2 = document.createElement("span"); k2.className = "k"; k2.textContent = "메모";
       bd.appendChild(k2); bd.appendChild(document.createTextNode(h.memo));
     }
-    el.appendChild(bd);
+    det.appendChild(bd);
   }
 
   const acts = document.createElement("div"); acts.className = "acts";
@@ -1459,7 +1553,7 @@ function histCard(h, fresh){
   ed.className = "btn ghost"; ed.textContent = "수정";
   ed.onclick = () => openHistForm(h);
   acts.appendChild(ed);
-  el.appendChild(acts);
+  det.appendChild(acts);
   return el;
 }
 
@@ -1483,8 +1577,13 @@ function openHistForm(h){
   $("#histForm").scrollIntoView({ behavior:"smooth", block:"start" });
 }
 function closeHistForm(){ histEditing = null; $("#histForm").hidden = true; }
-function lastPlace(){ const l = histOf(); return l.length ? l[0].place : ""; }
-function lastRoom(){  const l = histOf(); return l.length ? l[0].room  : ""; }
+/** 회차 추가 시 기본값으로 쓸 '가장 최근 회차' (목록 정렬과 무관하게 날짜로 고른다) */
+function lastHist(){
+  const l = histOf().slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return l[0] || null;
+}
+function lastPlace(){ const h = lastHist(); return h ? h.place : ""; }
+function lastRoom(){  const h = lastHist(); return h ? h.room  : ""; }
 
 function renderHistPickers(){
   const ab = $("#h_absent"); ab.innerHTML = "";
@@ -1510,7 +1609,9 @@ function renderHistPickers(){
 $("#histNew").onclick     = () => openHistForm(null);
 $("#histCancel").onclick  = closeHistForm;
 $("#h_copyPrev").onclick  = () => {
-  const prev = histOf().filter(h => h.status !== "취소" && (!histEditing || h.id !== histEditing.id))[0];
+  const prev = histOf()
+    .filter(h => h.status !== "취소" && (!histEditing || h.id !== histEditing.id))
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
   if (!prev){ setStatus("직전 회차가 없습니다", "err"); return; }
   hSongs = new Set(prev.songs);
   renderHistPickers();
@@ -1554,7 +1655,10 @@ function syncDsel(){ if (!dateDirty) dsel = new Set(cfg().dates); }
 
 function dateChanged(){
   dateDirty = true;
-  renderDateChips();
+  /* 저장을 기다리지 않고 일정·결과 화면에 바로 반영한다 (서버 응답은 뒤따라온다) */
+  if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
+  ST.config[B].dates = Array.from(dsel).sort();
+  renderDateChips(); renderGrid(); renderNotes(); renderResult();
   setStatus("날짜 변경됨 — 곧 저장됩니다");
   clearTimeout(dateTimer);
   dateTimer = setTimeout(saveDates, 900);
@@ -1884,7 +1988,8 @@ if (location.hash.toLowerCase() === "#admin") view = "admin";
 
 window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
 
-load();
+snapLoad();      /* 저장해 둔 화면을 먼저 그려서 빈 화면을 없앤다 */
+load();          /* 그 다음 최신으로 덮어쓴다 */
 </script>
 </body>
 </html>
