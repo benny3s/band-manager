@@ -581,7 +581,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-18l";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-18m";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1457,15 +1457,28 @@ function songCard(s, stat){
   return el;
 }
 
+/** 투표는 **누르는 즉시** 화면에 반영하고, 저장은 뒤에서 한다.
+ *  서버 왕복이 2~3초라 기다렸다 그리면 버튼이 먹통처럼 느껴진다.
+ *  실패하면 눌렀던 걸 되돌리고 알려준다. */
 async function vote(id, val){
   if (!me){ setStatus("먼저 이름을 골라주세요", "err"); return; }
+
+  const before = ST.votes[id] ? Object.assign({}, ST.votes[id]) : null;
+  const now = Object.assign({}, ST.votes[id] || {});
+  if (val === null) delete now[me]; else now[me] = val;
+  ST.votes[id] = now;
+  renderSongs();                       // 0초. 여기서 이미 눌린 것처럼 보인다
   setStatus("투표 저장 중…");
+
   try {
     ST = await api({ action:"vote_set", band:B, id, name:me, value: val === null ? "" : String(val) });
-    if (val === null) { /* 취소 */ }
     renderSongs();
     setStatus("투표 반영됨 ✓", "ok");
-  } catch(e){ setStatus("투표 실패 — " + e.message, "err"); }
+  } catch(e){
+    if (before) ST.votes[id] = before; else delete ST.votes[id];
+    renderSongs();
+    setStatus("투표 실패 — " + e.message, "err");
+  }
 }
 
 let songEditing = null;
