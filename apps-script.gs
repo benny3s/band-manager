@@ -41,57 +41,70 @@ var CONF_DEFAULT = { dates: '', hourStart: 9, hourEnd: 22, title: '' };
 
 /* ═══════════════ 시트 유틸 ═══════════════ */
 
-/** 한 번의 실행 안에서는 같은 Spreadsheet 객체를 씁니다.
- *  매번 openById 를 하면 방금 만든 탭이 안 보여서 같은 탭을 두 번 만들려다 실패합니다. */
-var _SS = null, _TAB = {};
+/* 스프레드시트 왕복이 느립니다(한 번에 100~300ms). 그래서 한 번의 실행 안에서
+ * ─ Spreadsheet 객체(_SS)
+ * ─ 탭 이름 → Sheet 객체 맵(_SHEETS, getSheets() 한 번으로)
+ * ─ 탭별 Sheet(_TAB) 와 읽어온 행들(_ROWS)
+ * 을 전부 캐시합니다. 탭 하나당 읽기는 getDataRange() 한 번뿐이고,
+ * put_ 로 쓴 내용은 캐시에 그대로 반영해 두어 뒤따르는 state_() 가 다시 읽지 않습니다. */
+var _SS = null, _SHEETS = null, _TAB = {}, _ROWS = {};
+
 function ss_() {
   if (!_SS) _SS = SpreadsheetApp.openById(SHEET_ID);
   return _SS;
 }
 
-/** 헤더가 맞는 탭을 보장한다. 옛 탭은 이름만 바꿔 보존. */
-function tab_(key) {
-  if (_TAB[key]) return _TAB[key];
-
-  var spec = TABS[key], ss = ss_(), sh = ss.getSheetByName(spec.name);
-
-  if (sh) {
-    var lastCol = Math.max(sh.getLastColumn(), 1);
-    var head = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-    var same = true;
-    for (var i = 0; i < spec.head.length; i++) {
-      if (String(head[i] || '').trim() !== spec.head[i]) { same = false; break; }
-    }
-    if (same) { _TAB[key] = sh; return sh; }
-
-    var bak = spec.name + '_구버전';
-    if (ss.getSheetByName(bak)) bak += '_' + Utilities.formatDate(new Date(), 'Asia/Seoul', 'MMddHHmm');
-    sh.setName(bak);
-    sh = null;
+function sheetByName_(name) {
+  if (!_SHEETS) {
+    _SHEETS = {};
+    var all = ss_().getSheets();
+    for (var i = 0; i < all.length; i++) _SHEETS[all[i].getName()] = all[i];
   }
-
-  try {
-    sh = ss.insertSheet(spec.name);
-  } catch (err) {
-    sh = ss.getSheetByName(spec.name);      // 이미 있으면 그걸 쓴다
-    if (!sh) throw err;
-  }
-  if (sh.getLastRow() < 1 || String(sh.getRange(1,1).getValue() || '') !== spec.head[0]) {
-    sh.getRange(1, 1, 1, spec.head.length).setValues([spec.head]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-  }
-  _TAB[key] = sh;
-  return sh;
+  return _SHEETS[name] || null;
 }
 
-/** 탭 전체를 객체 배열로 */
-function rows_(key) {
-  var spec = TABS[key], sh = tab_(key);
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return [];
-  var vals = sh.getRange(2, 1, lastRow - 1, spec.head.length).getValues();
+/** 헤더가 맞는 탭을 보장하고, 그 탭 전체를 한 번에 읽어 캐시한다. 옛 탭은 이름만 바꿔 보존. */
+function open_(key) {
+  if (_ROWS[key]) return _ROWS[key];
+
+  var spec = TABS[key], ss = ss_(), sh = sheetByName_(spec.name), vals = null;
+
+  if (sh) {
+    if (!sh.getLastRow()) {                        // 비어 있는 탭 → 헤더만 써 넣고 그대로 쓴다
+      sh.getRange(1, 1, 1, spec.head.length).setValues([spec.head]).setFontWeight('bold');
+      sh.setFrozenRows(1);
+      vals = [spec.head];
+    } else {
+      vals = sh.getDataRange().getValues();
+      var head = vals[0] || [];
+      var same = true;
+      for (var i = 0; i < spec.head.length; i++) {
+        if (String(head[i] || '').trim() !== spec.head[i]) { same = false; break; }
+      }
+      if (!same) {                                 // 구버전 탭 → 이름만 바꿔 보존
+        var bak = spec.name + '_구버전';
+        if (sheetByName_(bak)) bak += '_' + Utilities.formatDate(new Date(), 'Asia/Seoul', 'MMddHHmm');
+        sh.setName(bak);
+        _SHEETS[bak] = sh;
+        delete _SHEETS[spec.name];
+        sh = null; vals = null;
+      }
+    }
+  }
+
+  if (!sh) {
+    try { sh = ss.insertSheet(spec.name); }
+    catch (err) { sh = ss.getSheetByName(spec.name); if (!sh) throw err; }
+    sh.getRange(1, 1, 1, spec.head.length).setValues([spec.head]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    _SHEETS[spec.name] = sh;
+    vals = [spec.head];
+  }
+
+  _TAB[key] = sh;
+
   var out = [];
-  for (var r = 0; r < vals.length; r++) {
+  for (var r = 1; r < vals.length; r++) {
     var o = {}, empty = true;
     for (var c = 0; c < spec.head.length; c++) {
       var v = vals[r][c];
@@ -104,15 +117,21 @@ function rows_(key) {
     }
     if (!empty) out.push(o);
   }
+  _ROWS[key] = out;
   return out;
 }
 
-/** 탭 전체 덮어쓰기 */
+function tab_(key) { open_(key); return _TAB[key]; }
+
+/** 탭 전체를 객체 배열로 (실행 중엔 캐시) */
+function rows_(key) { return open_(key); }
+
+/** 탭 전체 덮어쓰기. 캐시도 같이 갱신해 state_() 가 다시 읽지 않게 한다. */
 function put_(key, list) {
-  var spec = TABS[key], sh = tab_(key);
-  var last = sh.getLastRow();
-  if (last > 1) sh.getRange(2, 1, last - 1, spec.head.length).clearContent();
-  if (!list.length) return;
+  var spec = TABS[key];
+  open_(key);
+  var sh = _TAB[key];
+
   var out = [];
   for (var r = 0; r < list.length; r++) {
     var row = [];
@@ -122,7 +141,14 @@ function put_(key, list) {
     }
     out.push(row);
   }
-  sh.getRange(2, 1, out.length, spec.head.length).setNumberFormat('@').setValues(out);
+
+  var lastRow = sh.getLastRow();
+  if (out.length) sh.getRange(2, 1, out.length, spec.head.length).setNumberFormat('@').setValues(out);
+  if (lastRow > out.length + 1) {                  // 줄어든 만큼만 지운다
+    sh.getRange(out.length + 2, 1, lastRow - out.length - 1, spec.head.length).clearContent();
+  }
+
+  _ROWS[key] = list;
 }
 
 function uid_(p) {

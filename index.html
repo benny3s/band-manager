@@ -488,7 +488,7 @@ function api(params){
       try { delete window[cb]; } catch(e){ window[cb] = undefined; }
       s.remove(); clearTimeout(t);
     };
-    const t = setTimeout(() => { done(); reject(new Error("응답이 없습니다")); }, 30000);
+    const t = setTimeout(() => { done(); reject(new Error("응답이 없습니다")); }, 45000);
     window[cb] = data => { done(); (data && data.ok === false) ? reject(new Error(data.error || "오류")) : resolve(data); };
     s.onerror = () => { done(); reject(new Error("네트워크 오류")); };
     s.src = ENDPOINT + "?" + q.toString();
@@ -1466,17 +1466,31 @@ function renderAdmin(){
   });
 }
 
+function absorb(){
+  if (!ST.bands.some(b => b.id === B)) B = ST.bands[0].id;
+  if (!members().includes(me)) me = localStorage.getItem("bm_name:" + B) || "";
+  if (!members().includes(me)) me = "";
+  dsel = new Set(cfg().dates); dateDirty = false;
+  applyConfig(); loadMine(); renderAll();
+}
+
 async function act(params, okMsg){
   setStatus("처리 중…");
   try {
     ST = await api(params);
-    if (!ST.bands.some(b => b.id === B)) B = ST.bands[0].id;
-    if (!members().includes(me)) me = localStorage.getItem("bm_name:" + B) || "";
-    if (!members().includes(me)) me = "";
-    dsel = new Set(cfg().dates); dateDirty = false;
-    applyConfig(); loadMine(); renderAll();
+    absorb();
     setStatus(okMsg || "완료", "ok");
-  } catch(e){ setStatus("실패 — " + e.message, "err"); }
+  } catch(e){
+    // 요청이 서버에는 닿았는데 응답만 못 받았을 수 있다. 최신 상태를 다시 받아 확인한다.
+    setStatus("응답이 늦습니다 — 반영됐는지 확인 중…");
+    try {
+      ST = await api({ action:"load" });
+      absorb();
+      setStatus("반영됐는지 화면에서 확인해주세요 (" + e.message + ")", "err");
+    } catch(e2){
+      setStatus("실패 — " + e.message + " · 잠시 뒤 새로고침 해주세요", "err");
+    }
+  }
 }
 
 $("#memberAdd").onclick = () => {
