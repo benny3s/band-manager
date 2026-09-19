@@ -110,7 +110,30 @@ section[hidden],[hidden]{display:none}
 .grid .dh .dow{font-weight:500;color:var(--muted);font-size:10.5px}
 .grid .dh.sun .dow{color:var(--warn)}
 .grid .corner{position:sticky;left:0;z-index:3;background:var(--card)}
-.slot{background:var(--card);touch-action:none;cursor:pointer;min-width:62px}
+.slot{background:var(--card);touch-action:none;cursor:pointer;min-width:62px;position:relative}
+/* 다른 멤버 중 그 시간에 되는 사람 수 — 칸 오른쪽 위에 작게 */
+.slot .oc{position:absolute;top:2px;right:4px;font-size:10px;font-weight:700;line-height:1;
+  color:var(--muted);pointer-events:none;font-variant-numeric:tabular-nums}
+.slot.on .oc{color:var(--on-accent);opacity:.85}
+/* 날짜 바로 아래 '사유' 줄 */
+.grid .memo{background:var(--card);padding:3px;min-height:36px}
+.memobtn{appearance:none;border:1px dashed var(--line);background:transparent;color:var(--muted);
+  font:inherit;font-size:11px;border-radius:7px;width:100%;min-height:30px;cursor:pointer;
+  touch-action:manipulation;white-space:nowrap}
+.memobtn.has{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:700}
+.memobtn.mine{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+/* 아래에서 올라오는 창 */
+.modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.38);
+  display:flex;align-items:flex-end;justify-content:center}
+.modal[hidden]{display:none}
+.modal .sheet{background:var(--card);width:100%;max-width:560px;border-radius:16px 16px 0 0;
+  padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto;
+  box-shadow:0 -8px 28px rgba(0,0,0,.18)}
+.dm-sum{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
+.dm-row{padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
+.dm-row .n{font-weight:700}
+.dm-row .w{color:var(--muted);font-size:12.5px;margin-left:6px}
+.dm-row .m{margin-top:3px}
 .slot.on{background:var(--accent)}
 .slot.alt{background:var(--soft)}
 .slot.alt.on{background:var(--accent)}
@@ -126,12 +149,12 @@ section[hidden],[hidden]{display:none}
   font:inherit;font-size:17px;line-height:1;width:42px;height:42px;border-radius:9px;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
-  user-select:none;-webkit-user-select:none;touch-action:none}
+  user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .cal .dowh{text-align:center;font-size:11.5px;color:var(--muted);padding:2px 0 4px}
 .cal .dowh.sun{color:var(--warn)}
 .cal .d{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);
   font:inherit;font-size:13.5px;border-radius:9px;padding:10px 0;cursor:pointer;
-  font-variant-numeric:tabular-nums;text-align:center;touch-action:none}
+  font-variant-numeric:tabular-nums;text-align:center;touch-action:manipulation}
 .cal .d.blank{border:0;background:transparent;cursor:default}
 .cal .d.past{color:var(--muted);opacity:.3;cursor:default}
 .cal .d.today{border-color:var(--ink);border-width:2px}
@@ -327,21 +350,37 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
       <p class="hint" style="margin:4px 0 0">
         칸을 누른 채 쭉 끌면 여러 칸이 한 번에 칠해집니다.<br>
-        날짜(위) · 시간(왼쪽)을 누르면 그 줄 전체가 토글돼요.
+        날짜(위) · 시간(왼쪽)을 누르면 그 줄 전체가 토글돼요.<br>
+        <b>사유</b> 칸을 누르면 그 날 사유를 적고, 다른 멤버 사정도 볼 수 있어요.
       </p>
       <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="grid"></div></div>
       <div class="legend">
         <span><i style="background:var(--accent);border-color:var(--accent)"></i>가능</span>
         <span><i style="background:var(--card)"></i>불가</span>
+        <span>칸 구석 숫자 = 다른 멤버 중 되는 사람</span>
       </div>
     </div>
 
-    <div class="card" id="noteCard" hidden>
-      <h2>안 되는 날 사유 <span class="pill grey">선택</span></h2>
-      <p class="hint">하루 단위로 한 줄이면 충분합니다. 예: 출장, 결혼식, 오후만 가능</p>
-      <div class="notes" id="notes"></div>
-    </div>
   </section>
+
+  <!-- 날짜별 사유 — 표 위 '사유' 칸을 누르면 뜬다. 다른 멤버의 사유·가능 시간도 같이 보인다 -->
+  <div class="modal" id="dayModal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div class="spread">
+        <h2 style="margin:0" id="dmTitle"></h2>
+        <button class="btn ghost" id="dmClose" type="button">닫기</button>
+      </div>
+      <p class="dm-sum" id="dmSum"></p>
+      <div id="dmMine">
+        <label class="fld"><span>내 사유 · 메모 (선택)</span>
+          <input type="text" id="dmInput" maxlength="200" placeholder="예: 출장, 결혼식, 오후만 가능"></label>
+        <div class="row" style="justify-content:flex-end;margin:8px 0 14px">
+          <button class="btn primary" id="dmSave" type="button">저장</button>
+        </div>
+      </div>
+      <div id="dmOthers"></div>
+    </div>
+  </div>
 
   <!-- ══════════ 결과 ══════════ -->
   <section id="view-result" hidden>
@@ -502,7 +541,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
   <section id="view-admin" hidden>
     <div class="card">
       <h2>날짜 후보</h2>
-      <p class="hint">달력에서 날짜를 누르면 켜지고, <b>누른 채 쭉 끌면</b> 여러 날이 한 번에 켜져요.</p>
+      <p class="hint">달력에서 날짜를 누르면 켜지고, 다시 누르면 꺼집니다.</p>
       <div class="calhead">
         <button class="nav" id="calPrev" aria-label="이전 달">‹</button>
         <span class="ym" id="calYM"></span>
@@ -610,7 +649,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-19a";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-19b";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -790,13 +829,14 @@ async function load(fresh){
 }
 
 function pickBand(id, quiet){
+  const same = (id === B);                 // 배경 새로고침이면 같은 밴드를 다시 고른다
   B = id;
   localStorage.setItem("bm_band", B);
   const saved = localStorage.getItem("bm_name:" + B) || "";
-  me = members().includes(saved) ? saved : "";
-  thresh = null; pick = null; focusName = null;
-  dsel = new Set(cfg().dates); dateDirty = false;
-  loadMine();
+  if (!same || !members().includes(me)) me = members().includes(saved) ? saved : "";
+  if (!same){ thresh = null; pick = null; focusName = null; }
+  if (!same || !dateDirty){ dsel = new Set(cfg().dates); dateDirty = false; }
+  loadMine(!same);
   applyConfig();
   renderAll();
   if (!quiet) setStatus((ST.bands.find(b => b.id === B) || {}).name + " 로 전환", "ok");
@@ -811,7 +851,12 @@ function applyConfig(){
   $("#titleInput").value = cfg().title || "";
 }
 
-function loadMine(){
+/* ⚠️ 서버 데이터로 '내 칸'을 다시 채운다. 그런데 **아직 저장 안 된 입력이 있으면
+   절대 덮지 않는다.** 저장해 둔 화면을 먼저 보여주는 동안 칠한 것이, 뒤늦게 도착한
+   최신 데이터에 덮여 사라지고 → 그 빈 상태가 자동 저장되던 사고(2026-09-19)가 있었다.
+   이름을 바꿀 때처럼 일부러 새로 불러와야 할 때만 force 를 준다. */
+function loadMine(force){
+  if (!force && (dirty || saving)) return;
   sel = new Set(); noteDraft = {};
   if (!me) return;
   const mine = hoursOf()[me] || {};
@@ -935,7 +980,7 @@ function renderMembers(){
     b.onclick = () => {
       if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
       me = name; localStorage.setItem("bm_name:" + B, me);
-      dirty = false; loadMine();
+      dirty = false; loadMine(true);
       renderMembers(); renderGrid(); renderNotes(); renderSongs();
       setStatus(me + " 님으로 응답 중", "ok");
     };
@@ -943,7 +988,6 @@ function renderMembers(){
   });
   const has = !!me && cfg().dates.length > 0;
   $("#answerCard").hidden = !has;
-  $("#noteCard").hidden   = !has;
   $("#saveBtn").hidden    = !(view === "answer" && has);
 }
 
@@ -970,6 +1014,23 @@ function renderGrid(){
     };
     g.appendChild(c);
   });
+
+  /* 사유 줄 — 누르면 그 날 창이 뜬다. 메모가 있으면 개수, 내가 적었으면 색이 찬다 */
+  g.appendChild(cell("gc hh", "사유"));
+  ds.forEach(d => {
+    const wrap = cell("gc memo", "");
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "memobtn";
+    const mine = !!(noteDraft[d] || "").trim();
+    const others = members().filter(n => n !== me && (notesOf()[n] || {})[d]).length;
+    const total = others + (mine ? 1 : 0);
+    if (mine) b.classList.add("mine"); else if (total) b.classList.add("has");
+    b.textContent = total ? "사유 " + total : "사유";
+    b.onclick = () => openDay(d);
+    wrap.appendChild(b);
+    g.appendChild(wrap);
+  });
+
   hs.forEach((h, i) => {
     const lab = cell("gc hh", String(h));
     lab.onclick = () => {
@@ -981,6 +1042,8 @@ function renderGrid(){
     ds.forEach(d => {
       const c = cell("gc slot" + (i % 2 ? " alt" : ""), "");
       c.dataset.k = key(d,h);
+      const n = othersAt(d, h);
+      if (n){ const o = document.createElement("span"); o.className = "oc"; o.textContent = n; c.appendChild(o); }
       g.appendChild(c);
     });
   });
@@ -1014,34 +1077,64 @@ function paintGrid(){ $$("#grid .slot").forEach(c => c.classList.toggle("on", se
   window.addEventListener("pointerup", end);
 })();
 
-function renderNotes(){
-  const box = $("#notes"); box.innerHTML = "";
-  if (!me) return;
-  cfg().dates.forEach(d => {
-    const none = hours().every(h => !sel.has(key(d,h)));
-    const row = document.createElement("div");
-    row.className = "noterow";
-    const lab = document.createElement("span");
-    lab.className = "nd" + (none ? " none" : "");
-    lab.textContent = fmtFull(d);
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.placeholder = none ? "이 날 안 되는 이유 (선택)" : "메모 (선택)";
-    inp.value = noteDraft[d] || "";
-    inp.oninput = () => { noteDraft[d] = inp.value; touch(); };
-    row.append(lab, inp);
-    box.appendChild(row);
-  });
+/** 나 말고 그 시간에 되는 사람 수 */
+function othersAt(d, h){
+  const H = hoursOf();
+  return members().filter(n => n !== me && ((H[n] || {})[d] || []).includes(h)).length;
 }
+
+/* 예전엔 표 아래에 날짜별 입력칸을 줄줄이 늘어놨는데, 표 위 '사유' 칸 → 창으로 옮겼다 */
+function renderNotes(){}
+
+let dmDate = null;
+function openDay(d){
+  dmDate = d;
+  $("#dmTitle").textContent = fmtFull(d);
+  $("#dmInput").value = noteDraft[d] || "";
+  $("#dmMine").hidden = !me;
+
+  const others = members().filter(n => n !== me);
+  const H = hoursOf(), N = notesOf();
+  const okN = others.filter(n => ((H[n] || {})[d] || []).length).length;
+  const ansN = others.filter(n => Array.isArray((H[n] || {})[d])).length;
+  $("#dmSum").textContent = others.length
+    ? "다른 멤버 " + others.length + "명 중 응답 " + ansN + "명 · 시간 되는 사람 " + okN + "명"
+    : "다른 멤버가 없습니다.";
+
+  const box = $("#dmOthers"); box.innerHTML = "";
+  /* 사유 적은 사람 → 시간 되는 사람 → 나머지 순 */
+  others.slice().sort((a, b) => (!!(N[b]||{})[d]) - (!!(N[a]||{})[d])
+                              || ((H[b]||{})[d]||[]).length - ((H[a]||{})[d]||[]).length)
+    .forEach(n => {
+      const hrs = (H[n] || {})[d], memo = (N[n] || {})[d];
+      const row = document.createElement("div"); row.className = "dm-row";
+      const nm = document.createElement("span"); nm.className = "n"; nm.textContent = n;
+      const w  = document.createElement("span"); w.className = "w";
+      w.textContent = Array.isArray(hrs) ? (hrs.length ? runsOf(hrs) : "그 날 불가") : "아직 응답 없음";
+      row.append(nm, w);
+      if (memo){
+        const m = document.createElement("div"); m.className = "m"; m.textContent = "“" + memo + "”";
+        row.appendChild(m);
+      }
+      box.appendChild(row);
+    });
+  $("#dayModal").hidden = false;
+}
+function closeDay(){ $("#dayModal").hidden = true; dmDate = null; }
+$("#dmClose").onclick = closeDay;
+$("#dayModal").addEventListener("click", e => { if (e.target.id === "dayModal") closeDay(); });
+$("#dmInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#dmSave").click(); });
+$("#dmSave").onclick = () => {
+  if (!dmDate || !me) return;
+  noteDraft[dmDate] = $("#dmInput").value.trim();
+  closeDay();
+  renderGrid(); touch();
+};
 
 /* ═══════════════ 응답 저장 ═══════════════ */
 function touch(){
   dirty = true;
   setStatus("변경됨 — 곧 저장됩니다");
-  $$("#notes .nd").forEach((el, i) => {
-    const d = cfg().dates[i];
-    el.classList.toggle("none", hours().every(h => !sel.has(key(d,h))));
-  });
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 1200);
 }
@@ -1968,34 +2061,13 @@ function renderCal(){
   }
 }
 
-(function(){
-  const cal = $("#cal");
-  let mode = null;
-  const at = (x,y) => {
-    const el = document.elementFromPoint(x,y);
-    const b = el && el.closest ? el.closest(".cal .d") : null;
-    return (b && b.dataset.d && !b.disabled) ? b : null;
-  };
-  const apply = b => {
-    if (!b) return;
-    const d = b.dataset.d;
-    if (mode === "on"){ if (!dsel.has(d)){ dsel.add(d); b.classList.add("on"); } }
-    else              { if (dsel.has(d)) { dsel.delete(d); b.classList.remove("on"); } }
-  };
-  cal.addEventListener("pointerdown", e => {
-    const b = at(e.clientX, e.clientY);
-    if (!b) return;
-    e.preventDefault();
-    try { cal.setPointerCapture(e.pointerId); } catch(err){}
-    mode = dsel.has(b.dataset.d) ? "off" : "on";
-    apply(b);
-  });
-  cal.addEventListener("pointermove", e => { if (mode) apply(at(e.clientX, e.clientY)); });
-  const end = () => { if (mode){ mode = null; dateChanged(); } };
-  cal.addEventListener("pointerup", end);
-  cal.addEventListener("pointercancel", end);
-  window.addEventListener("pointerup", end);
-})();
+/* 달력은 **누르기만** 한다. 드래그로 여러 날을 칠하게 했더니 폰에서 달력 위를
+   쓸어 스크롤할 때마다 날짜가 켜지고 꺼져서 불편하다는 피드백(2026-09-19). */
+$("#cal").addEventListener("click", e => {
+  const b = e.target.closest(".cal .d");
+  if (!b || !b.dataset.d || b.disabled) return;
+  toggleDate(b.dataset.d);
+});
 
 function renderDateChips(){
   const list = Array.from(dsel).sort();
@@ -2136,7 +2208,7 @@ function absorb(){
   if (!ST.bands.some(b => b.id === B)) B = ST.bands[0].id;
   if (!members().includes(me)) me = localStorage.getItem("bm_name:" + B) || "";
   if (!members().includes(me)) me = "";
-  dsel = new Set(cfg().dates); dateDirty = false;
+  if (!dateDirty) dsel = new Set(cfg().dates);
   applyConfig(); loadMine(); renderAll();
 }
 
