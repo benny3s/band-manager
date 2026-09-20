@@ -8,6 +8,8 @@
  *   멤버   밴드 | 이름
  *   설정   밴드 | key | value           (dates / hourStart / hourEnd / title / windows / pin)
  *            windows = JSON {"2026-09-20":[9,12], ...}  날짜별 시간대 (없으면 hourStart~hourEnd)
+ *            tables  = JSON [{"id":"t1","name":"시간표1","dates":[...]}, ...]  여러 시간표 (v13)
+ *                      dates 는 모든 시간표 날짜의 합집합으로 같이 저장된다 (응답은 날짜 단위라 시간표끼리 공유)
  *   응답   밴드 | 이름 | 날짜 | 시간     ("10,11,12" 또는 "-" = 그 날 불가)
  *   메모   밴드 | 이름 | 날짜 | 메모
  *   곡     id | 밴드 | 상태 | 제목 | 아티스트 | 키 | 선곡자 | 링크 | 파트 | 튜닝 | 메모 | 추가일
@@ -259,6 +261,27 @@ function parseWindows_(raw) {
 }
 
 /** "10,11,12" → [10,11,12] / "-" → [] / 빈칸 → null(미응답) */
+/** 시간표 목록 검증: 최대 20개, 이름 30자, 날짜 정규화·중복 제거·정렬 */
+function parseTables_(raw) {
+  var arr;
+  try { arr = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return []; }
+  if (!arr || !arr.length) return [];
+  var out = [], ids = {};
+  for (var i = 0; i < arr.length && out.length < 20; i++) {
+    var t = arr[i] || {};
+    var id = String(t.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) || ('t' + (i + 1));
+    if (ids[id]) continue; ids[id] = 1;
+    var ds = t.dates || [], keep = [], seen = {};
+    for (var j = 0; j < ds.length; j++) {
+      var nd = normDate_(ds[j]);
+      if (nd && !seen[nd]) { seen[nd] = 1; keep.push(nd); }
+    }
+    keep.sort();
+    out.push({ id: id, name: String(t.name || ('시간표' + (i + 1))).slice(0, 30), dates: keep });
+  }
+  return out;
+}
+
 function parseHours_(raw) {
   var s = String(raw == null ? '' : raw).trim();
   if (!s) return null;
@@ -351,6 +374,7 @@ function state_(pins) {
     else if (k === 'hourEnd')     out.config[cb].hourEnd   = clampHour_(v, CONF_DEFAULT.hourEnd);
     else if (k === 'title')       out.config[cb].title     = String(v || '');
     else if (k === 'windows')     out.config[cb].windows   = parseWindows_(v);
+    else if (k === 'tables')      out.config[cb].tables    = parseTables_(v);
   }
 
   var rs = rows_('resp');
@@ -525,6 +549,14 @@ function act_(action, p) {
     if (p.hourEnd   !== undefined) set('hourEnd',   clampHour_(p.hourEnd,   CONF_DEFAULT.hourEnd));
     if (p.title     !== undefined) set('title', String(p.title).slice(0, 60));
     if (p.windows   !== undefined) set('windows', JSON.stringify(parseWindows_(p.windows)));
+    if (p.tables    !== undefined) {                 // 여러 시간표 — dates 는 합집합으로 맞춘다
+      var tl = parseTables_(p.tables), un = {}, ua = [];
+      for (i = 0; i < tl.length; i++) for (var q = 0; q < tl[i].dates.length; q++) un[tl[i].dates[q]] = 1;
+      for (var kk in un) ua.push(kk);
+      ua.sort();
+      set('tables', JSON.stringify(tl));
+      set('dates', ua.join(','));
+    }
     if (p.setpin    !== undefined) set('pin',   String(p.setpin).trim().slice(0, 20));
     put_('conf', list);
     return;
