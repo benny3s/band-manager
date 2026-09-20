@@ -6,7 +6,8 @@
  *
  *   밴드   id | 이름
  *   멤버   밴드 | 이름
- *   설정   밴드 | key | value           (dates / hourStart / hourEnd / title)
+ *   설정   밴드 | key | value           (dates / hourStart / hourEnd / title / windows / pin)
+ *            windows = JSON {"2026-09-20":[9,12], ...}  날짜별 시간대 (없으면 hourStart~hourEnd)
  *   응답   밴드 | 이름 | 날짜 | 시간     ("10,11,12" 또는 "-" = 그 날 불가)
  *   메모   밴드 | 이름 | 날짜 | 메모
  *   곡     id | 밴드 | 상태 | 제목 | 아티스트 | 키 | 선곡자 | 링크 | 파트 | 튜닝 | 메모 | 추가일
@@ -237,6 +238,23 @@ function clampHour_(v, d) {
   return (isNaN(n) || n < 0 || n > 24) ? d : n;
 }
 
+/** 날짜별 시간대 JSON 을 검증해서 {날짜: [시작, 끝]} 만 남긴다. 이상한 건 버린다. */
+function parseWindows_(raw) {
+  var out = {}, o;
+  try { o = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {}); } catch (e) { return out; }
+  if (!o || typeof o !== 'object') return out;
+  var n = 0;
+  for (var k in o) {
+    var d = normDate_(k); if (!d) continue;
+    var w = o[k]; if (!w || w.length !== 2) continue;
+    var a = clampHour_(w[0], -1), b = clampHour_(w[1], -1);
+    if (a < 0 || b < 0 || b <= a) continue;
+    out[d] = [a, b];
+    if (++n >= 120) break;
+  }
+  return out;
+}
+
 /** "10,11,12" → [10,11,12] / "-" → [] / 빈칸 → null(미응답) */
 function parseHours_(raw) {
   var s = String(raw == null ? '' : raw).trim();
@@ -303,7 +321,7 @@ function state_(pins) {
     out.bands.push({ id: b, name: bl[i]['이름'], hasPin: has, locked: !ok });
     out.members[b] = [];
     out.config[b] = { dates: [], hourStart: CONF_DEFAULT.hourStart,
-                      hourEnd: CONF_DEFAULT.hourEnd, title: bl[i]['이름'] };
+                      hourEnd: CONF_DEFAULT.hourEnd, title: bl[i]['이름'], windows: {} };
     out.hours[b] = {};
     out.notes[b] = {};
   }
@@ -329,6 +347,7 @@ function state_(pins) {
     } else if (k === 'hourStart') out.config[cb].hourStart = clampHour_(v, CONF_DEFAULT.hourStart);
     else if (k === 'hourEnd')     out.config[cb].hourEnd   = clampHour_(v, CONF_DEFAULT.hourEnd);
     else if (k === 'title')       out.config[cb].title     = String(v || '');
+    else if (k === 'windows')     out.config[cb].windows   = parseWindows_(v);
   }
 
   var rs = rows_('resp');
@@ -502,6 +521,7 @@ function act_(action, p) {
     if (p.hourStart !== undefined) set('hourStart', clampHour_(p.hourStart, CONF_DEFAULT.hourStart));
     if (p.hourEnd   !== undefined) set('hourEnd',   clampHour_(p.hourEnd,   CONF_DEFAULT.hourEnd));
     if (p.title     !== undefined) set('title', String(p.title).slice(0, 60));
+    if (p.windows   !== undefined) set('windows', JSON.stringify(parseWindows_(p.windows)));
     if (p.setpin    !== undefined) set('pin',   String(p.setpin).trim().slice(0, 20));
     put_('conf', list);
     return;

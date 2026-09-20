@@ -130,6 +130,7 @@ table.sheet th{background:var(--card);font-weight:700;font-size:11.5px;text-alig
   padding:6px 6px;white-space:nowrap}
 table.sheet th .dow{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
 table.sheet th.sun .dow{color:var(--warn)}
+table.sheet th .dow.win{color:var(--accent)}
 table.sheet th.nm{position:sticky;left:0;z-index:2;text-align:left;min-width:64px;max-width:92px;
   overflow:hidden;text-overflow:ellipsis}
 table.sheet th.corner{position:sticky;left:0;z-index:3}
@@ -151,6 +152,18 @@ table.sheet td.on{background:var(--accent)}
 table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .card.on .cardhead .caret{transform:rotate(180deg)}
 
+/* 날짜별 시간대 목록 */
+#winList li{display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid var(--line)}
+#winList li:first-child{border-top:0}
+#winList .wd{flex:1 1 auto;font-weight:600;font-size:13.5px;white-space:nowrap;min-width:0;
+  overflow:hidden;text-overflow:ellipsis}
+#winList .wd.sun{color:var(--warn)}
+#winList select{appearance:none;font:inherit;font-size:14px;font-variant-numeric:tabular-nums;
+  padding:8px 6px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);
+  min-height:42px;width:58px;text-align:center;flex:0 0 auto}
+#winList .u{color:var(--muted);font-size:12px;flex:0 0 auto}
+#winList .cus{font-size:10.5px;color:var(--accent);font-weight:700}
+
 /* 아래에서 올라오는 창 */
 .modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.38);
   display:flex;align-items:flex-end;justify-content:center}
@@ -166,6 +179,9 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .slot.on{background:var(--accent)}
 .slot.alt{background:var(--soft)}
 .slot.alt.on{background:var(--accent)}
+.slot.off,.hcell.off{background:repeating-linear-gradient(135deg,var(--bg) 0 4px,var(--soft) 4px 8px);
+  cursor:default;opacity:.55}
+.grid .dh .win{font-weight:500;color:var(--accent);font-size:10.5px}
 .hcell{font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--card)}
 .hcell.z{color:var(--muted);opacity:.45;font-weight:500}
 .hcell.full{outline:2px solid var(--accent);outline-offset:-2px}
@@ -274,6 +290,11 @@ footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
 .item .ttl{font-weight:700;font-size:15.5px;letter-spacing:-.02em;line-height:1.35}
 .item .meta{color:var(--muted);font-size:12.5px;margin-top:2px}
 .item .badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.parts{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.pp{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:3px 8px;border-radius:999px;
+  background:var(--soft);color:var(--ink);line-height:1.3}
+.pp b{color:var(--muted);font-weight:600}
+table.sum .a.ps{color:var(--ink);opacity:.75;white-space:normal}
 .item .body{margin-top:10px;font-size:13.5px;white-space:pre-wrap;line-height:1.55}
 .item .body .k{color:var(--muted);font-size:12px;display:block;margin-bottom:1px}
 /* 여러 줄로 접힐 때 줄 사이가 붙어 있으면 아래 버튼이 눌린다. 줄 간격을 넉넉히. */
@@ -533,7 +554,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <label class="fld"><span>링크 — 한 줄에 하나. <code>라벨|주소</code> 로 이름을 붙일 수 있어요</span>
           <textarea id="f_links" placeholder="라이브|https://youtu.be/...&#10;https://youtu.be/..."></textarea></label>
         <div class="row nowrap">
-          <label class="fld" style="flex:2 1 0"><span>파트</span><input type="text" id="f_parts" placeholder="리드: 양관우 / 리듬: 송명재"></label>
+          <label class="fld" style="flex:2 1 0"><span>세션 (파트: 이름, / 로 구분)</span><input type="text" id="f_parts" placeholder="보컬: 이경하 / 리드: 양관우 / 베이스: 박종찬 / 드럼: 나득균"></label>
           <label class="fld" style="flex:1 1 0"><span>튜닝</span><input type="text" id="f_tuning" placeholder="DROP D"></label>
         </div>
         <label class="fld"><span>메모</span><textarea id="f_memo"></textarea></label>
@@ -637,6 +658,18 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn ghost danger" id="calClear" style="flex:0 0 auto">전부 지우기</button>
       </div>
       <div class="chips" id="dateChips" style="margin-top:8px"></div>
+
+      <!-- 날짜마다 시간대를 따로 둘 수 있다. 기본은 아래 '기본 시간대' -->
+      <div id="winBox" hidden style="margin-top:14px">
+        <div class="spread">
+          <h3 style="margin:0;font-size:14px">날짜별 시간대</h3>
+          <button class="btn ghost" id="winReset" type="button">전부 기본으로</button>
+        </div>
+        <p class="hint" style="margin:3px 0 8px">
+          기본은 아래 <b>기본 시간대</b>. 토요일 저녁처럼 다른 시간을 잡고 싶은 날만 바꾸세요.
+        </p>
+        <ul class="plain" id="winList"></ul>
+      </div>
     </div>
 
     <div class="card">
@@ -660,7 +693,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     </div>
 
     <div class="card">
-      <h2>시간 범위 · 제목</h2>
+      <h2>기본 시간대 · 제목</h2>
+      <p class="hint">새로 넣는 날짜에 붙는 시간대예요. 예: 일요일 오전이면 9 ~ 12</p>
       <div class="row" style="margin:10px 0">
         <input type="number" id="hStart" min="0" max="23" style="flex:0 1 74px">
         <span class="hint" style="margin:0">시 ~</span>
@@ -710,7 +744,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20a";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20b";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -804,14 +838,29 @@ function ro(w){
   return w + (jong === 0 || jong === 8 ? "로" : "으로");
 }
 
-function cfg(){ return ST.config[B] || { dates:[], hourStart:9, hourEnd:22, title:"" }; }
+function cfg(){ return ST.config[B] || { dates:[], hourStart:9, hourEnd:12, title:"", windows:{} }; }
 function members(){ return ST.members[B] || []; }
 function hoursOf(){ return ST.hours[B] || {}; }
 function notesOf(){ return ST.notes[B] || {}; }
 function songsOf(st){ return ST.songs.filter(s => s.band === B && (!st || s.status === st)); }
 function histOf(){ return ST.hist.filter(h => h.band === B); }
 function songById(id){ return ST.songs.find(s => s.id === id); }
-function hours(){ const c = cfg(), a = []; for (let h = c.hourStart; h < c.hourEnd; h++) a.push(h); return a; }
+/* 날짜마다 시간대가 다를 수 있다 (기본은 일요일 9~12 같은 '기본 시간대', 토요일 저녁은 18~21 식).
+   ─ winOf(d)    : 그 날의 [시작, 끝]
+   ─ hoursFor(d) : 그 날 고를 수 있는 시간들
+   ─ hours()     : 모든 후보 날짜의 합집합 (격자·결과표의 줄) */
+function winOf(d){
+  const c = cfg(), w = (c.windows || {})[d];
+  return (w && w.length === 2 && w[1] > w[0]) ? [w[0], w[1]] : [c.hourStart, c.hourEnd];
+}
+function hoursFor(d){ const [a, b] = winOf(d), r = []; for (let h = a; h < b; h++) r.push(h); return r; }
+function hours(){
+  const ds = cfg().dates;
+  if (!ds.length){ const c = cfg(), a = []; for (let h = c.hourStart; h < c.hourEnd; h++) a.push(h); return a; }
+  const set = new Set(); ds.forEach(d => hoursFor(d).forEach(h => set.add(h)));
+  return Array.from(set).sort((x, y) => x - y);
+}
+function winLabel(d){ const [a, b] = winOf(d); return a + "–" + b + "시"; }
 
 function setStatus(msg, cls){
   const el = $("#status");
@@ -1069,7 +1118,7 @@ $("#whoChange").onclick = () => {
 };
 
 /* 내 칸의 시간 — 저장 전이라도 지금 칠해둔 걸 보여준다 */
-function myHours(d){ return hours().filter(h => sel.has(key(d,h))); }
+function myHours(d){ return hoursFor(d).filter(h => sel.has(key(d,h))); }
 function myAnswered(d){ return Array.isArray((hoursOf()[me] || {})[d]) || dirty; }
 
 /** 스프레드시트처럼: 줄 = 멤버(나 먼저), 칸 = 날짜, 내용 = 되는 시간 + 메모 */
@@ -1087,9 +1136,10 @@ function renderSheet(){
   ds.forEach(d => {
     const th = document.createElement("th");
     th.className = dObj(d).getDay() === 0 ? "sun" : "";
-    th.innerHTML = '<span></span><span class="dow"></span>';
+    th.innerHTML = '<span></span><span class="dow"></span><span class="dow win"></span>';
     th.querySelector("span").textContent = fmtD(d);
     th.querySelector(".dow").textContent = fmtDow(d);
+    th.querySelector(".win").textContent = winLabel(d);
     hr.appendChild(th);
   });
   thead.appendChild(hr); t.appendChild(thead);
@@ -1138,10 +1188,12 @@ function renderGrid(){
   g.appendChild(cell("gc hh corner", "시"));
   ds.forEach(d => {
     const c = cell("gc dh" + (dObj(d).getDay() === 0 ? " sun" : ""), "");
-    c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>';
+    c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>' +
+                  '<span class="win">' + winLabel(d) + '</span>';
     c.onclick = () => {
-      const all = hs.every(h => sel.has(key(d,h)));
-      hs.forEach(h => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
+      const mine = hoursFor(d);
+      const all = mine.every(h => sel.has(key(d,h)));
+      mine.forEach(h => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
       paintGrid(); touch();
     };
     g.appendChild(c);
@@ -1166,16 +1218,20 @@ function renderGrid(){
   hs.forEach((h, i) => {
     const lab = cell("gc hh", String(h));
     lab.onclick = () => {
-      const all = ds.every(d => sel.has(key(d,h)));
-      ds.forEach(d => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
+      const on = ds.filter(d => hoursFor(d).includes(h));
+      const all = on.every(d => sel.has(key(d,h)));
+      on.forEach(d => all ? sel.delete(key(d,h)) : sel.add(key(d,h)));
       paintGrid(); touch();
     };
     g.appendChild(lab);
     ds.forEach(d => {
-      const c = cell("gc slot" + (i % 2 ? " alt" : ""), "");
-      c.dataset.k = key(d,h);
-      const n = othersAt(d, h);
-      if (n){ const o = document.createElement("span"); o.className = "oc"; o.textContent = n; c.appendChild(o); }
+      const inWin = hoursFor(d).includes(h);
+      const c = cell("gc slot" + (i % 2 ? " alt" : "") + (inWin ? "" : " off"), "");
+      if (inWin){
+        c.dataset.k = key(d,h);
+        const n = othersAt(d, h);
+        if (n){ const o = document.createElement("span"); o.className = "oc"; o.textContent = n; c.appendChild(o); }
+      }
       g.appendChild(c);
     });
   });
@@ -1187,7 +1243,7 @@ function paintGrid(){ $$("#grid .slot").forEach(c => c.classList.toggle("on", se
 (function(){
   const g = $("#grid");
   let mode = null;
-  const at = (x,y) => { const el = document.elementFromPoint(x,y); return el && el.closest ? el.closest(".slot") : null; };
+  const at = (x,y) => { const el = document.elementFromPoint(x,y); const c = el && el.closest ? el.closest(".slot") : null; return (c && c.dataset.k) ? c : null; };
   const apply = c => {
     if (!c) return;
     const k = c.dataset.k;
@@ -1196,7 +1252,7 @@ function paintGrid(){ $$("#grid .slot").forEach(c => c.classList.toggle("on", se
   };
   g.addEventListener("pointerdown", e => {
     const c = e.target.closest(".slot");
-    if (!c) return;
+    if (!c || !c.dataset.k) return;
     e.preventDefault();
     try { g.setPointerCapture(e.pointerId); } catch(err){}
     mode = sel.has(c.dataset.k) ? "off" : "on";
@@ -1222,7 +1278,7 @@ let dmDate = null;
 function renderDmHours(){
   const box = $("#dmHours"); box.innerHTML = "";
   if (!me || !dmDate) return;
-  hours().forEach(h => {
+  hoursFor(dmDate).forEach(h => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "chip sm";
     b.textContent = h + "시";
@@ -1236,12 +1292,12 @@ function renderDmHours(){
     box.appendChild(b);
   });
 }
-$("#dmAll").onclick  = () => { if (!dmDate) return; hours().forEach(h => sel.add(key(dmDate, h)));    renderDmHours(); paintGrid(); renderSheet(); touch(); };
-$("#dmNone").onclick = () => { if (!dmDate) return; hours().forEach(h => sel.delete(key(dmDate, h))); renderDmHours(); paintGrid(); renderSheet(); touch(); };
+$("#dmAll").onclick  = () => { if (!dmDate) return; hoursFor(dmDate).forEach(h => sel.add(key(dmDate, h)));    renderDmHours(); paintGrid(); renderSheet(); touch(); };
+$("#dmNone").onclick = () => { if (!dmDate) return; hoursFor(dmDate).forEach(h => sel.delete(key(dmDate, h))); renderDmHours(); paintGrid(); renderSheet(); touch(); };
 
 function openDay(d){
   dmDate = d;
-  $("#dmTitle").textContent = fmtFull(d);
+  $("#dmTitle").textContent = fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
   $("#dmMine").hidden = !me;
   renderDmHours();
@@ -1303,7 +1359,7 @@ async function save(){
   setStatus("저장 중…");
   const payload = { hours:{}, notes:{} };
   cfg().dates.forEach(d => {
-    payload.hours[d] = hours().filter(h => sel.has(key(d,h)));
+    payload.hours[d] = hoursFor(d).filter(h => sel.has(key(d,h)));
     payload.notes[d] = noteDraft[d] || "";
   });
   /* 결과 탭이 서버를 기다리지 않게 내 응답을 먼저 반영한다 */
@@ -1447,7 +1503,7 @@ function renderResult(){
       }
       run = [];
     };
-    hs.forEach(h => { availAt(d,h).length >= T ? run.push(h) : flush(); });
+    hoursFor(d).forEach(h => { availAt(d,h).length >= T ? run.push(h) : flush(); });
     flush();
   });
   blocks.sort((a,b) => b.who.length - a.who.length || b.len - a.len || (a.d < b.d ? -1 : 1));
@@ -1473,13 +1529,15 @@ function renderResult(){
     g.appendChild(cell("gc hh corner", "시"));
     ds.forEach(d => {
       const c = cell("gc dh" + (dObj(d).getDay() === 0 ? " sun" : ""), "");
-      c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>';
+      c.innerHTML = '<span>' + fmtD(d) + '</span><span class="dow">' + fmtDow(d) + '</span>' +
+                    '<span class="win">' + winLabel(d) + '</span>';
       g.appendChild(c);
     });
     hs.forEach(h => {
       g.appendChild(cell("gc hh", String(h)));
       ds.forEach(d => {
         let c;
+        if (!hoursFor(d).includes(h)){ g.appendChild(cell("gc hcell off", "")); return; }
         if (focusName){                                   // 한 사람만 보기
           const ok = ((hoursOf()[focusName] || {})[d] || []).includes(h);
           c = cell("gc hcell" + (ok ? " full" : " z"), ok ? "✓" : "");
@@ -1707,6 +1765,12 @@ function renderSongSummary(list, spec){
       const aa = document.createElement("span"); aa.className = "a"; aa.textContent = s.artist;
       c1.appendChild(aa);
     }
+    const pl = parseParts(s.parts);
+    if (pl.length){
+      const ps = document.createElement("span"); ps.className = "a ps";
+      ps.textContent = pl.map(x => (x.part ? x.part + " " : "") + x.who).join(" · ");
+      c1.appendChild(ps);
+    }
     tr.appendChild(c1);
 
     const c2 = document.createElement("td"); c2.className = "mid";
@@ -1766,6 +1830,27 @@ function foldable(el, key, headNodes){
   return det;                       // 상세 내용은 여기에 담는다
 }
 
+/* 파트 칸은 자유 텍스트다. "리드: 송명재 / 리듬: 양관우" 처럼 적으면
+   [파트, 이름] 쌍으로 읽어서 알약으로 보여준다. 구분은 / , · 줄바꿈, 이름은 : 또는 띄어쓰기. */
+function parseParts(str){
+  return String(str || "").split(/[\/,·\n]+/).map(x => x.trim()).filter(Boolean).map(x => {
+    const m = x.match(/^(.+?)\s*[:：]\s*(.+)$/) || x.match(/^(\S+)\s+(.+)$/);
+    return m ? { part: m[1].trim(), who: m[2].trim() } : { part: "", who: x };
+  });
+}
+function partPills(str){
+  const list = parseParts(str);
+  if (!list.length) return null;
+  const box = document.createElement("div"); box.className = "parts";
+  list.forEach(p => {
+    const pill = document.createElement("span"); pill.className = "pp";
+    if (p.part){ const k = document.createElement("b"); k.textContent = p.part; pill.appendChild(k); }
+    pill.appendChild(document.createTextNode(p.who));
+    box.appendChild(pill);
+  });
+  return box;
+}
+
 function songCard(s, stat){
   const el = document.createElement("div"); el.className = "item";
 
@@ -1777,7 +1862,8 @@ function songCard(s, stat){
     m = document.createElement("div"); m.className = "meta";
     m.textContent = metaBits.join(" · ");
   }
-  const det = foldable(el, "s:" + s.id, [t, m]);
+  const pp = partPills(s.parts);                      // 접혀 있어도 누가 무슨 세션인지 보이게
+  const det = foldable(el, "s:" + s.id, [t, m, pp]);
 
   const badges = document.createElement("div"); badges.className = "badges";
   const addPill = (txt, cls) => {
@@ -2227,6 +2313,77 @@ $("#cal").addEventListener("click", e => {
   toggleDate(b.dataset.d);
 });
 
+/** 관리 탭 — 날짜별 시간대 목록. 바꾸면 화면엔 즉시, 저장은 뒤에서(모아서) */
+let winTimer = null;
+function renderWinList(){
+  const list = Array.from(dsel).sort();
+  $("#winBox").hidden = !list.length;
+  const ul = $("#winList"); ul.innerHTML = "";
+  const W = cfg().windows || {};
+  list.forEach(d => {
+    const li = document.createElement("li");
+    const lab = document.createElement("span");
+    lab.className = "wd" + (dObj(d).getDay() === 0 ? " sun" : "");
+    lab.textContent = fmtFull(d);
+    if (W[d]){ const c = document.createElement("span"); c.className = "cus"; c.textContent = " 따로"; lab.appendChild(c); }
+    const [a, b] = winOf(d);
+    const s1 = mkHourSel(0, 23, a), s2 = mkHourSel(1, 24, b);
+    const tilde = document.createElement("span"); tilde.className = "u"; tilde.textContent = "시 ~";
+    const u2 = document.createElement("span"); u2.className = "u"; u2.textContent = "시";
+    const onChange = () => {
+      let na = +s1.value, nb = +s2.value;
+      if (nb <= na){ nb = Math.min(24, na + 1); s2.value = String(nb); }
+      setWindow(d, na, nb);
+    };
+    s1.onchange = onChange; s2.onchange = onChange;
+    li.append(lab, s1, tilde, s2, u2);
+    ul.appendChild(li);
+  });
+}
+function mkHourSel(lo, hi, cur){
+  const sel = document.createElement("select");
+  for (let h = lo; h <= hi; h++){
+    const o = document.createElement("option"); o.value = String(h); o.textContent = String(h);
+    if (h === cur) o.selected = true;
+    sel.appendChild(o);
+  }
+  return sel;
+}
+let winWant = null, winPend = 0;      // 아직 저장 안 된 '원하는 시간대 전체'
+function noteWinWant(){
+  winWant = JSON.stringify((cfg().windows) || {});
+  if (!winPend) winPend = pendAdd(() => { if (ST.config[B] && winWant) ST.config[B].windows = JSON.parse(winWant); });
+}
+function setWindow(d, a, b){
+  if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:12, title:"", windows:{} };
+  const c = ST.config[B]; c.windows = c.windows || {};
+  if (a === c.hourStart && b === c.hourEnd) delete c.windows[d];   // 기본과 같으면 굳이 안 남긴다
+  else c.windows[d] = [a, b];
+  noteWinWant();
+  renderWinList(); renderGrid(); renderSheet(); renderResult();
+  setStatus(fmtFull(d) + " " + a + "–" + b + "시 · 곧 저장됩니다");
+  clearTimeout(winTimer);
+  winTimer = setTimeout(saveWindows, 900);
+}
+async function saveWindows(){
+  clearTimeout(winTimer);
+  const snap = winWant || JSON.stringify((cfg().windows) || {});
+  try {
+    ST = await api({ action:"config_set", band:B, windows: snap });
+    if (winWant === snap){ pendDone(winPend); winPend = 0; winWant = null; }   // 그 사이 또 바꿨으면 유지
+    pendReplay(); applyConfig(); renderAll();
+    setStatus("시간대 저장됨 ✓", "ok");
+  } catch(e){ setStatus("시간대 저장 실패 — " + e.message, "err"); }
+}
+$("#winReset").onclick = () => {
+  if (!ST.config[B]) return;
+  if (!confirm("모든 날짜를 기본 시간대로 되돌릴까요?")) return;
+  ST.config[B].windows = {};
+  noteWinWant();
+  renderWinList(); renderGrid(); renderSheet(); renderResult();
+  clearTimeout(winTimer); saveWindows();
+};
+
 function renderDateChips(){
   const list = Array.from(dsel).sort();
   $("#dateCount").textContent = list.length ? "후보 " + list.length + "일" : "아직 없음";
@@ -2240,6 +2397,7 @@ function renderDateChips(){
     b.onclick = () => toggleDate(d);
     box.appendChild(b);
   });
+  renderWinList();
 }
 
 function toggleDow(dow){
@@ -2446,7 +2604,7 @@ $("#bandInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#ba
 $("#hourSave").onclick = () => {
   const a = parseInt($("#hStart").value, 10), b = parseInt($("#hEnd").value, 10);
   act({ action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value },
-      "시간 범위 저장됨", () => {
+      "기본 시간대 저장됨", () => {
     if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
     if (Number.isFinite(a)) ST.config[B].hourStart = a;
     if (Number.isFinite(b)) ST.config[B].hourEnd   = b;
