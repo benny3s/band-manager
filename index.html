@@ -93,7 +93,6 @@ section[hidden],[hidden]{display:none !important}   /* .btn 의 inline-flex 가 
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
   color:var(--on-accent);font-weight:600}
 .chip.sm{font-size:12.5px;padding:5px 11px}
-.chip.done::after{content:" ✓";opacity:.7}
 
 /* ── 시간 격자 ── */
 .grid-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -436,8 +435,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
   <div class="card" id="whoCard">
     <div id="whoPick">
       <h2>누구세요?</h2>
-      <p class="hint">이름을 고르면 일정 응답·좋아요·세션에 그 이름으로 들어갑니다. ✓ 는 일정에 응답한 사람.</p>
+      <p class="hint">이름을 고르면 일정 응답·좋아요·세션에 그 이름으로 들어갑니다.</p>
       <div class="chips" id="memberChips"></div>
+      <button class="btn ghost sm" id="whoKeep" type="button" hidden style="margin-top:8px;padding-left:0">그대로 두기</button>
     </div>
     <div class="whobar" id="whoDone" hidden>
       <span class="who-ic" aria-hidden="true">●</span>
@@ -830,7 +830,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20f";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20g";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1185,6 +1185,7 @@ async function refresh(){ await load(true); }   /* 회전 표시는 load 가 한
 $("#refreshBtn").onclick = refresh;
 $("#titleBtn").onclick   = refresh;
 
+let whoOpen = false;             // 이름 바꾸기 목록이 펼쳐져 있나
 function renderMembers(){
   const box = $("#memberChips"); box.innerHTML = "";
   if (!members().length){
@@ -1192,10 +1193,12 @@ function renderMembers(){
   }
   members().forEach(name => {
     const b = document.createElement("button");
-    b.className = "chip" + (answered(name) ? " done" : "");
+    b.className = "chip";
     b.type = "button"; b.textContent = name;
-    b.setAttribute("aria-pressed", String(name === me));
+    b.setAttribute("aria-pressed", String(name === me));     // 지금 나는 초록
     b.onclick = () => {
+      whoOpen = false;
+      if (name === me){ renderMembers(); return; }           // 같은 이름 → 그대로 접기
       if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
       me = name; localStorage.setItem("bm_name:" + B, me);
       dirty = false; loadMine(true);
@@ -1206,8 +1209,9 @@ function renderMembers(){
   });
   const has = !!me && cfg().dates.length > 0;
   $("#whoCard").hidden = isLocked() || !members().length;
-  $("#whoPick").hidden = !!me;
-  $("#whoDone").hidden = !me;
+  $("#whoPick").hidden = !!me && !whoOpen;
+  $("#whoDone").hidden = !me || whoOpen;
+  $("#whoKeep").hidden = !me;
   if (me) $("#whoName").textContent = me;
   $("#sheetCard").hidden  = !cfg().dates.length || !members().length;
   $("#answerCard").hidden = !has;
@@ -1219,12 +1223,9 @@ function renderMembers(){
 
 let gridOpen = false;
 $("#gridHead").onclick = () => { gridOpen = !gridOpen; renderMembers(); };
-$("#whoChange").onclick = () => {
-  if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
-  me = ""; localStorage.removeItem("bm_name:" + B);
-  dirty = false; sel = new Set(); noteDraft = {};
-  renderMembers(); renderGrid(); renderSongs();
-};
+/* 바꾸기 = 이름 목록만 펼친다. 지금 이름은 그대로(초록), 같은 이름이나 '그대로' 누르면 다시 접힘 */
+$("#whoChange").onclick = () => { whoOpen = true; renderMembers(); };
+$("#whoKeep").onclick   = () => { whoOpen = false; renderMembers(); };
 
 /* 내 칸의 시간 — 저장 전이라도 지금 칠해둔 걸 보여준다 */
 function myHours(d){ return hoursFor(d).filter(h => sel.has(key(d,h))); }
@@ -2892,7 +2893,7 @@ function openMember(n){
 $("#mmAnswer").onclick = () => {
   const n = mmName; closeModal("memModal");
   if (dirty && !confirm("저장 안 된 변경이 있습니다. 이동할까요?")) return;
-  me = n; localStorage.setItem("bm_name:" + B, me);
+  me = n; whoOpen = false; localStorage.setItem("bm_name:" + B, me);
   dirty = false; loadMine(true);
   renderMembers(); renderGrid(); renderSongs();
   setStatus(me + " 님으로 응답 중", "ok");
