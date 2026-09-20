@@ -224,6 +224,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
   font-size:11.5px;font-weight:500;color:var(--muted)}
 .tbar .tb::before,.tbar .tb.last::after{border-left:0}
 .dm-state{font-weight:700;font-size:15px}
+/* 곡·회차 수정 창: 목록 위에 아래에서 올라오는 창으로 (2026-09-20 Benny: "수정 누르면 맨 위로 가는 것보다 그 자리에서") */
+#songForm:not([hidden]),#histForm:not([hidden]){position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;
+  max-height:88vh;overflow:auto;z-index:62;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -8px 28px rgba(0,0,0,.18)}
+.formback{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:61}
 .hpeople .wholine{display:flex;flex-wrap:wrap;gap:4px 6px;margin:2px 0 8px}
 .hpeople .absline{margin:2px 0}
 .whob{appearance:none;border:0;background:var(--soft);border-radius:8px;padding:6px 10px;font:inherit;font-size:13.5px;
@@ -641,6 +646,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     </div>
   </div>
 
+  <div class="formback" id="formBack" hidden></div>
   <!-- ══════════ 곡 ══════════ -->
   <section id="view-song" hidden>
     <div class="card">
@@ -819,8 +825,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
 
       <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">
-      <h3 class="mh">새 날짜의 기본 시간대</h3>
-      <p class="hint">새로 넣는 날짜에 붙는 시간대예요. 예: 일요일 오전이면 9 ~ 12</p>
+      <h3 class="mh">이 시간표의 기본 시간대</h3>
+      <p class="hint">이 시간표 날짜에 붙는 시간대예요 (다른 시간표와 따로). 예: 일요일 오전이면 9 ~ 12</p>
       <div class="row" style="margin:10px 0">
         <input type="number" id="hStart" min="0" max="23" style="flex:0 1 74px">
         <span class="hint" style="margin:0">시 ~</span>
@@ -882,6 +888,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn" id="copyLink">링크 복사</button>
         <button class="btn danger" id="resetBtn">응답 전체 초기화</button>
       </div>
+      <h3 class="mh" style="margin-top:16px">백업에서 되살리기</h3>
+      <p class="hint">백업 파일(snapshot-….json)을 고르면, 지금 없는 가능 시간·메모만 <b>보태서</b> 되살립니다. 지우는 건 없어요.</p>
+      <input type="file" id="restoreFile" accept=".json,application/json">
     </div>
   </div>
 
@@ -913,7 +922,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20t";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20u";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1022,9 +1031,16 @@ function songById(id){ return ST.songs.find(s => s.id === id); }
    ─ winOf(d)    : 그 날의 [시작, 끝]
    ─ hoursFor(d) : 그 날 고를 수 있는 시간들
    ─ hours()     : 모든 후보 날짜의 합집합 (격자·결과표의 줄) */
+/* 시간대: 그 날(키)에 따로 정한 게 있으면 그것, 없으면 **그 시간표의 기본 시간대**(v15, 2026-09-20 Benny:
+   "기본 시간이 공유된다 — 모든 데이터는 시간표별로"). 시간표에 없으면 밴드 기본. */
+function tableOfKey(k){
+  const i = String(k).indexOf("~"), ts = tablesOf();
+  return i < 0 ? ts[0] : (ts.find(t => t.id === String(k).slice(0, i)) || ts[0]);
+}
+function tWin(t){ const c = cfg(); return (t && Number.isFinite(t.hs) && Number.isFinite(t.he) && t.he > t.hs) ? [t.hs, t.he] : [c.hourStart, c.hourEnd]; }
 function winOf(d){
-  const c = cfg(), w = (c.windows || {})[d];
-  return (w && w.length === 2 && w[1] > w[0]) ? [w[0], w[1]] : [c.hourStart, c.hourEnd];
+  const w = (cfg().windows || {})[d];
+  return (w && w.length === 2 && w[1] > w[0]) ? [w[0], w[1]] : tWin(tableOfKey(d));
 }
 function hoursFor(d){ const [a, b] = winOf(d), r = []; for (let h = a; h < b; h++) r.push(h); return r; }
 function hours(){
@@ -1065,7 +1081,32 @@ function unionDates(){
   const u = new Set(); tablesOf().forEach(t => t.dates.forEach(d => u.add(d)));
   return Array.from(u).sort();
 }
-function tablesPayload(){ return JSON.stringify(tablesOf().map(t => ({ id:t.id, name:t.name, dates:t.dates.slice().sort() }))); }
+function tablesPayload(){ return JSON.stringify(tablesOf().map(t => {
+  const o = { id:t.id, name:t.name, dates:t.dates.slice().sort() };
+  if (Number.isFinite(t.hs) && Number.isFinite(t.he)) { o.hs = t.hs; o.he = t.he; }
+  return o;
+})); }
+/* 옛 데이터: 시간표에 기본 시간대가 없으면 한 번 정해 저장한다.
+   첫 시간표는 이미 들어온 응답이 걸친 시간(예: 9~15), 나머지는 밴드 기본. (밴드 기본이 22~24 로 바뀌면서
+   첫 시간표 응답 9~14시가 저장 때 잘려 나간 사고 → 2026-09-20) */
+let tablesFixing = false;
+function ensureTableHours(){
+  if (tablesFixing || isLocked()) return;
+  const ts = cfg().tables;
+  if (!Array.isArray(ts) || !ts.length || ts.every(t => Number.isFinite(t.hs))) return;
+  tablesFixing = true;
+  saveTables("시간표별 기본 시간대 정리", list => list.forEach((t, i) => {
+    if (Number.isFinite(t.hs)) return;
+    let lo = 99, hi = -1;
+    if (i === 0){
+      const H = hoursOf();
+      Object.values(H).forEach(m => t.dates.forEach(d => (m[d] || []).forEach(h => { lo = Math.min(lo, h); hi = Math.max(hi, h); })));
+    }
+    if (hi >= 0){ t.hs = lo; t.he = hi + 1; }
+    else { t.hs = cfg().hourStart; t.he = cfg().hourEnd; }
+  }));
+  setTimeout(() => { tablesFixing = false; }, 5000);
+}
 
 function setStatus(msg, cls){
   const el = $("#status");
@@ -1162,8 +1203,9 @@ function applyConfig(){
   const band = ST.bands.find(b => b.id === B) || { name: "밴드매니저" };
   /* 맨 위 제목은 항상 '밴드매니저'. 밴드 이름은 오른쪽 위 선택 버튼에, 제목은 부제에 둔다 */
   document.title = (cfg().title || band.name) + " — 밴드매니저";
-  $("#hStart").value = cfg().hourStart;
-  $("#hEnd").value   = cfg().hourEnd;
+  const tw = tWin(curTable());
+  $("#hStart").value = tw[0];
+  $("#hEnd").value   = tw[1];
   $("#titleInput").value = cfg().title || "";
 }
 
@@ -1250,6 +1292,7 @@ function renderAll(){
   $("#bestCard").hidden = !(hasDates && hasMem);
   $("#heatOpenBtn").hidden = !(tDates().length && hasMem);
   renderTables();
+  ensureTableHours();
   renderHeatFold();
 
   renderMembers();
@@ -1705,7 +1748,8 @@ async function save(){
   const payload = { hours:{}, notes:{} };
   migrateDrop.forEach(d => { payload.hours[d] = null; payload.notes[d] = ""; });   // 옮기고 남은 옛 줄 지우기
   allKeys().forEach(d => {
-    const hs = hoursFor(d).filter(h => sel.has(key(d,h)));
+    /* ⚠️ 시간대 밖의 시간도 버리지 않는다 — 시간대를 좁혔다 다시 넓혀도 응답이 살아 있게 (2026-09-20 사고) */
+    const hs = []; for (let h = 0; h < 24; h++) if (sel.has(key(d,h))) hs.push(h);
     /* 시간 있음 → [..] / 전부 불가 → [] / 안 정함 → null (서버가 그 줄을 지운다, v12~) */
     payload.hours[d] = hs.length ? hs : (noneSel.has(d) ? [] : null);
     payload.notes[d] = noteDraft[d] || "";
@@ -2276,7 +2320,10 @@ function songCard(s, stat){
   const ed = document.createElement("button");
   ed.className = "btn ghost"; ed.textContent = "곡 정보 수정";
   ed.onclick = () => openSongForm(s);
-  acts.appendChild(ed);
+  const dl = document.createElement("button");
+  dl.className = "btn ghost danger"; dl.textContent = "삭제";
+  dl.onclick = () => { songEditing = s; $("#songDelete").onclick(); };
+  acts.append(ed, dl);
   det.appendChild(acts);
 
   return el;
@@ -2352,10 +2399,10 @@ function openSongForm(s){
   $("#f_tuning").value = s ? s.tuning : "";
   $("#f_memo").value   = s ? s.memo   : "";
   $("#songDelete").hidden = !s;
-  $("#songForm").hidden = false;
-  $("#songForm").scrollIntoView({ behavior:"smooth", block:"start" });
+  $("#songForm").hidden = false; $("#formBack").hidden = false;     // 그 자리에서 뜨는 창 (맨 위로 안 감)
+  $("#songForm").scrollTop = 0;
 }
-function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; }
+function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; $("#formBack").hidden = !$("#histForm").hidden ? false : true; }
 
 $("#archHead").onclick   = () => { archOpen = !archOpen; renderArchive(); };
 $("#resortBtn").onclick  = () => { resortVotes(); renderSongs(); setStatus("좋아요 순으로 정렬했습니다", "ok"); };
@@ -2383,6 +2430,7 @@ $("#songSave").onclick   = async () => {
     else ST.songs.push(Object.assign({ band:B, added: iso(new Date()) }, p, { id: newSongId }));
   });
 };
+$("#formBack").onclick = () => { closeSongForm(); closeHistForm(); };
 $("#songDelete").onclick = () => {
   if (!songEditing) return;
   if (!confirm(songEditing.title + " 을 지울까요? 투표와 이력 연결도 함께 지워집니다.")) return;
@@ -2520,7 +2568,8 @@ function histCard(h, fresh, today){
       bd.appendChild(k);
       abs.forEach(a => {
         const line = document.createElement("div"); line.className = "absline";
-        const why = document.createElement("span"); why.className = "why"; why.textContent = " (" + a.why + ")";
+        const cm = a.why || calMemo(a.name, h.date);            // 이유를 안 적었으면 캘린더 메모
+        const why = document.createElement("span"); why.className = "why"; why.textContent = " (" + cm + ")";
         line.append(who(a.name), why);
         bd.appendChild(line);
       });
@@ -2538,7 +2587,10 @@ function histCard(h, fresh, today){
   const ed = document.createElement("button");
   ed.className = "btn ghost"; ed.textContent = "수정";
   ed.onclick = () => openHistForm(h);
-  acts.appendChild(ed);
+  const dl = document.createElement("button");
+  dl.className = "btn ghost danger"; dl.textContent = "삭제";
+  dl.onclick = () => { histEditing = h; $("#histDelete").onclick(); };
+  acts.append(ed, dl);
   det.appendChild(acts);
   return el;
 }
@@ -2563,12 +2615,24 @@ function openHistForm(h){
   $("#h_memo").value   = h ? h.memo  : "";
   hAbsent = new Map((h ? h.absent : []).map(x => { const a = parseAbs(x); return [a.name, a.why]; }));
   hSongs  = new Set(h ? h.songs  : []);
+  if (!h) fillAbsFromCal();
   renderHistPickers();
   $("#histDelete").hidden = !h;
-  $("#histForm").hidden = false;
-  $("#histForm").scrollIntoView({ behavior:"smooth", block:"start" });
+  $("#histForm").hidden = false; $("#formBack").hidden = false;
+  $("#histForm").scrollTop = 0;
 }
-function closeHistForm(){ histEditing = null; $("#histForm").hidden = true; }
+/** 캘린더에서 그 날 '불가'로 찍은 사람을 불참으로, 메모를 이유로 채운다 (이미 고른 건 그대로) */
+function fillAbsFromCal(){
+  const d = $("#h_date").value, k = d && keyForDate(d);
+  if (!k) return;
+  const H = hoursOf();
+  members().forEach(n => {
+    const v = (H[n] || {})[k];
+    if (Array.isArray(v) && !v.length && !hAbsent.has(n)) hAbsent.set(n, calMemo(n, d));
+  });
+}
+$("#h_date").addEventListener("change", () => { fillAbsFromCal(); hAbsent.forEach((w, n) => { if (!w) hAbsent.set(n, calMemo(n, $("#h_date").value)); }); renderHistPickers(); });
+function closeHistForm(){ histEditing = null; $("#histForm").hidden = true; $("#formBack").hidden = true; }
 /** 회차 추가 시 기본값으로 쓸 '가장 최근 회차' (목록 정렬과 무관하게 날짜로 고른다) */
 function lastHist(){
   const l = histOf().slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -3028,12 +3092,9 @@ $("#bandAdd").onclick = () => {
 $("#bandInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#bandAdd").click(); });
 $("#hourSave").onclick = () => {
   const a = parseInt($("#hStart").value, 10), b = parseInt($("#hEnd").value, 10);
-  act({ action:"config_set", band:B, hourStart: $("#hStart").value, hourEnd: $("#hEnd").value },
-      "기본 시간대 저장됨", () => {
-    if (!ST.config[B]) ST.config[B] = { dates:[], hourStart:9, hourEnd:22, title:"" };
-    if (Number.isFinite(a)) ST.config[B].hourStart = a;
-    if (Number.isFinite(b)) ST.config[B].hourEnd   = b;
-  });
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a){ setStatus("시간대를 확인해주세요", "err"); return; }
+  const id = curTable().id;
+  saveTables(curTable().name + " 기본 시간대 " + a + "~" + b + "시", ts => { const t = ts.find(x => x.id === id); if (t){ t.hs = a; t.he = b; } });
 };
 $("#titleSave").onclick = () => {
   const v = $("#titleInput").value;
@@ -3298,7 +3359,8 @@ function addTable(){
   const name = (prompt("새 시간표 이름", "시간표" + n) || "").trim();
   if (!name) return;
   const id = "t" + Date.now().toString(36);
-  saveTables(name + " 추가됨", ts => { if (!ts.some(x => x.id === id)) ts.push({ id, name, dates:[] }); });
+  const [ws, we] = tWin(curTable());
+  saveTables(name + " 추가됨", ts => { if (!ts.some(x => x.id === id)) ts.push({ id, name, dates:[], hs:ws, he:we }); });
   curT = id; isOpenT(id); openT.add(id);
   dsel = new Set(); dateDirty = false;
   renderAll();
@@ -3320,6 +3382,41 @@ $("#tDelete").onclick = () => {
   dsel = new Set(tPlain()); dateDirty = false;
   renderAll();
 };
+
+/* ═══════════════ 백업에서 되살리기 (2026-09-20 사고 복구용) ═══════════════
+   PIN 은 이 화면을 연 사람이 이미 넣었으므로 여기서 따로 다루지 않는다. 보태기만(union), 지우지 않음. */
+$("#restoreFile").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  let snap;
+  try { snap = JSON.parse((await f.text()).replace(/^\uFEFF/, "")); } catch(err){ setStatus("백업 파일을 읽지 못했어요", "err"); return; }
+  const BH = ((snap.hours || {})[B]) || {}, BN = ((snap.notes || {})[B]) || {};
+  const H = hoursOf(), N = notesOf(), keys = new Set(allKeys()), plan = {};
+  Object.keys(BH).forEach(n => Object.keys(BH[n] || {}).forEach(k => {
+    if (!keys.has(k)) return;
+    const b = BH[n][k] || [], cur = (H[n] || {})[k];
+    if (!b.length) return;                                        // 옛 '✗'(기본값이었을 수 있음)는 되살리지 않는다
+    const u = Array.from(new Set([...(cur || []), ...b])).sort((x, y) => x - y);
+    if (!cur || u.length !== cur.length){ (plan[n] = plan[n] || { hours:{}, notes:{} }).hours[k] = u; }
+  }));
+  Object.keys(BN).forEach(n => Object.keys(BN[n] || {}).forEach(k => {
+    if (!keys.has(k) || !BN[n][k] || (N[n] || {})[k]) return;
+    (plan[n] = plan[n] || { hours:{}, notes:{} }).notes[k] = BN[n][k];
+  }));
+  const names = Object.keys(plan);
+  if (!names.length){ setStatus("되살릴 게 없어요 — 지금 데이터에 이미 다 있습니다", "ok"); return; }
+  const lines = names.map(n => n + ": 시간 " + Object.keys(plan[n].hours).length + "칸, 메모 " + Object.keys(plan[n].notes).length + "개");
+  if (!confirm("백업에서 보탭니다 (지우는 건 없음)\n\n" + lines.join("\n") + "\n\n진행할까요?")) return;
+  for (const n of names){
+    const p = plan[n], cur = (H[n] || {}), curN = (N[n] || {});
+    Object.keys(p.notes).forEach(k => { if (!(k in p.hours) && Array.isArray(cur[k])) p.hours[k] = cur[k]; });
+    Object.keys(p.hours).forEach(k => { if (!(k in p.notes) && curN[k]) p.notes[k] = curN[k]; });
+    try { ST = await api({ action:"save", band:B, name:n, payload: JSON.stringify(p) }); }
+    catch(err){ setStatus(n + " 되살리기 실패 — " + err.message, "err"); return; }
+  }
+  loadMine(true); renderAll();
+  setStatus("되살렸습니다 ✓ (" + names.join(", ") + ")", "ok");
+});
 
 /* ═══════════════ 탭 ═══════════════ */
 $("#clearAll").onclick  = () => { sel.clear(); noneSel.clear(); paintGrid(); touch(); };
