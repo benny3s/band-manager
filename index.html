@@ -199,7 +199,13 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
-.chip.no[aria-pressed="true"]{background:var(--warn,#c0392b);border-color:var(--warn,#c0392b);color:#fff}
+.seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg4 button{appearance:none;font:inherit;font-size:13.5px;font-weight:600;min-height:44px;border-radius:11px;
+  border:1px solid var(--line);background:var(--bg);color:var(--muted);touch-action:manipulation;padding:0 4px}
+.seg4 button[aria-checked="true"].m-u{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.seg4 button[aria-checked="true"].m-a{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.seg4 button[aria-checked="true"].m-s{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+.seg4 button[aria-checked="true"].m-n{background:var(--warn);border-color:var(--warn);color:#fff}
 .dm-set{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
 .dm-set summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:42px;display:flex;align-items:center;list-style:none}
 .dm-set summary::-webkit-details-marker{display:none}
@@ -558,14 +564,18 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
       <p class="dm-sum" id="dmSum"></p>
       <div id="dmMine">
-        <div class="spread" style="margin-bottom:6px">
-          <span class="hint" style="margin:0">내가 되는 시간 — 누르면 켜지고 꺼져요</span>
-          <span class="row tight" style="flex:0 0 auto">
-            <button class="chip sm yes" id="dmAll" type="button" aria-pressed="false">전부 가능</button>
-            <button class="chip sm no" id="dmNone" type="button" aria-pressed="false">전부 불가</button>
-          </span>
+        <span class="hint" style="margin:0 0 6px;display:block">이 날 나는</span>
+        <!-- 네 가지 중 하나만. 아무것도 안 했으면 '미정' -->
+        <div class="seg4" id="dmMode" role="radiogroup">
+          <button type="button" data-m="undecided" class="m-u">미정</button>
+          <button type="button" data-m="all"       class="m-a">전부 가능</button>
+          <button type="button" data-m="some"      class="m-s">일부 가능</button>
+          <button type="button" data-m="no"        class="m-n">불가</button>
         </div>
-        <div class="chips" id="dmHours"></div>
+        <div id="dmSome" hidden>
+          <span class="hint" style="margin:10px 0 6px;display:block">되는 시간만 눌러주세요</span>
+          <div class="chips" id="dmHours"></div>
+        </div>
         <label class="fld" style="margin-top:12px"><span>사유 · 메모 (선택)</span>
           <input type="text" id="dmInput" maxlength="200" placeholder="예: 출장, 결혼식, 오후만 가능"></label>
         <div class="row" style="justify-content:flex-end;margin:8px 0 14px">
@@ -842,7 +852,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20j";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20k";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1433,10 +1443,21 @@ function othersAt(d, h){
 /* 예전엔 표 아래에 날짜별 입력칸을 줄줄이 늘어놨는데, 표 위 '사유' 칸 → 창으로 옮겼다 */
 function renderNotes(){}
 
-let dmDate = null;
+let dmDate = null, dmPartial = false;      // dmPartial: '일부 가능'을 눌러 시간을 고르는 중
+/** 그 날 내 상태: undecided(미정) / all / some / no */
+function dayMode(d){
+  const hs = hoursFor(d), n = hs.filter(h => sel.has(key(d,h))).length;
+  if (n && n === hs.length && !dmPartial) return "all";
+  if (n) return "some";
+  if (noneSel.has(d)) return "no";
+  return dmPartial ? "some" : "undecided";
+}
 function renderDmHours(){
   const box = $("#dmHours"); box.innerHTML = "";
   if (!me || !dmDate) return;
+  const mode = dayMode(dmDate);
+  $$("#dmMode button").forEach(b => { b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(b.dataset.m === mode)); });
+  $("#dmSome").hidden = (mode !== "some");
   hoursFor(dmDate).forEach(h => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "chip sm";
@@ -1445,31 +1466,28 @@ function renderDmHours(){
     b.onclick = () => {
       const k = key(dmDate, h);
       sel.has(k) ? sel.delete(k) : sel.add(k);
+      noneSel.delete(dmDate); dmPartial = true;
       renderDmHours(); paintGrid(); renderSheet(); touch();
     };
     box.appendChild(b);
   });
-  const all = hoursFor(dmDate).every(h => sel.has(key(dmDate, h)));
-  $("#dmAll").setAttribute("aria-pressed", String(all));
-  $("#dmNone").setAttribute("aria-pressed", String(noneSel.has(dmDate)));
 }
-/* 전부 가능(초록) / 전부 불가(빨강). 켜진 걸 다시 누르면 '아직 안 정함'으로 돌아간다 */
-$("#dmAll").onclick  = () => {
-  if (!dmDate) return;
-  const hs = hoursFor(dmDate), all = hs.every(h => sel.has(key(dmDate, h)));
-  hs.forEach(h => all ? sel.delete(key(dmDate, h)) : sel.add(key(dmDate, h)));
-  noneSel.delete(dmDate);
+$$("#dmMode button").forEach(b => b.onclick = () => {
+  const d = dmDate; if (!d) return;
+  const hs = hoursFor(d), m = b.dataset.m;
+  if (m === "some"){
+    dmPartial = true; noneSel.delete(d);          // 전부 가능에서 왔으면 칠해진 채로 빼기만 하면 된다
+  } else {
+    dmPartial = false;
+    hs.forEach(h => m === "all" ? sel.add(key(d,h)) : sel.delete(key(d,h)));
+    m === "no" ? noneSel.add(d) : noneSel.delete(d);
+  }
   renderDmHours(); paintGrid(); renderSheet(); touch();
-};
-$("#dmNone").onclick = () => {
-  if (!dmDate) return;
-  hoursFor(dmDate).forEach(h => sel.delete(key(dmDate, h)));
-  noneSel.has(dmDate) ? noneSel.delete(dmDate) : noneSel.add(dmDate);
-  renderDmHours(); paintGrid(); renderSheet(); touch();
-};
+});
 
 function openDay(d){
-  dmDate = d;
+  dmDate = d; dmPartial = false;
+  if (me && dayMode(d) === "some") dmPartial = true;
   $("#dmTitle").textContent = fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
   $("#dmMine").hidden = !me;
