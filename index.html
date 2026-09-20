@@ -229,6 +229,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
   max-height:88vh;overflow:auto;z-index:62;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom));
   box-shadow:0 -8px 28px rgba(0,0,0,.18)}
 .formback{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:61}
+/* 창이 떠 있을 때 뒤 화면이 같이 스크롤되지 않게 (2026-09-20 Benny) */
+.modal .sheet,#songForm,#histForm{overscroll-behavior:contain}
+.modal,.formback{overscroll-behavior:contain;touch-action:none}
+.modal .sheet{touch-action:pan-x pan-y}
+html.scrlock,html.scrlock body{overflow:hidden;overscroll-behavior:none}
 .hpeople .wholine{display:flex;flex-wrap:wrap;gap:4px 6px;margin:2px 0 8px}
 .hpeople .absline{margin:2px 0}
 .whob{appearance:none;border:0;background:var(--soft);border-radius:8px;padding:6px 10px;font:inherit;font-size:13.5px;
@@ -923,7 +928,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20v";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20w";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -3424,6 +3429,15 @@ $("#restoreFile").addEventListener("change", async e => {
   loadMine(true); renderAll();
   setStatus("되살렸습니다 ✓ (" + names.join(", ") + ")", "ok");
 });
+
+/* 창(모달·곡/회차 폼)이 하나라도 열려 있으면 뒤 페이지 스크롤을 잠근다 */
+(function(){
+  const pops = [...document.querySelectorAll(".modal, #songForm, #histForm")];
+  const sync = () => document.documentElement.classList.toggle("scrlock", pops.some(p => !p.hidden));
+  const mo = new MutationObserver(sync);
+  pops.forEach(p => mo.observe(p, { attributes:true, attributeFilter:["hidden"] }));
+  sync();
+})();
 
 /* ═══════════════ 탭 ═══════════════ */
 $("#clearAll").onclick  = () => { sel.clear(); noneSel.clear(); paintGrid(); touch(); };
