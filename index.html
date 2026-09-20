@@ -199,6 +199,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
+.chip.no[aria-pressed="true"]{background:var(--warn,#c0392b);border-color:var(--warn,#c0392b);color:#fff}
+.dm-set{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
+.dm-set summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:42px;display:flex;align-items:center;list-style:none}
+.dm-set summary::-webkit-details-marker{display:none}
+.dm-set[open] summary{color:var(--ink)}
 .dm-sum{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
 .dm-row{padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
 .dm-row .n{font-weight:700}
@@ -552,18 +557,12 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn ghost" id="dmClose" type="button">닫기</button>
       </div>
       <p class="dm-sum" id="dmSum"></p>
-      <div class="dm-admin">
-        <span class="hint" style="margin:0">이 날 시간</span>
-        <span id="dmWin"></span>
-        <span style="flex:1"></span>
-        <button class="btn ghost danger" id="dmDrop" type="button">후보에서 빼기</button>
-      </div>
       <div id="dmMine">
         <div class="spread" style="margin-bottom:6px">
-          <span class="hint" style="margin:0">내가 되는 시간 — 누르면 켜지고 꺼집니다</span>
+          <span class="hint" style="margin:0">내가 되는 시간 — 누르면 켜지고 꺼져요</span>
           <span class="row tight" style="flex:0 0 auto">
-            <button class="btn ghost" id="dmAll" type="button">전부 가능</button>
-            <button class="btn ghost" id="dmNone" type="button">전부 불가</button>
+            <button class="chip sm yes" id="dmAll" type="button" aria-pressed="false">전부 가능</button>
+            <button class="chip sm no" id="dmNone" type="button" aria-pressed="false">전부 불가</button>
           </span>
         </div>
         <div class="chips" id="dmHours"></div>
@@ -574,6 +573,16 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         </div>
       </div>
       <div id="dmOthers"></div>
+      <!-- 날짜 자체를 고치는 건 드물어서 맨 아래에 접어둔다 -->
+      <details class="dm-set" id="dmSet">
+        <summary>⚙ 이 날 설정 — 시간대 바꾸기 · 후보에서 빼기</summary>
+        <div class="dm-admin">
+          <span class="hint" style="margin:0">이 날 시간</span>
+          <span id="dmWin"></span>
+          <span style="flex:1"></span>
+          <button class="btn ghost danger" id="dmDrop" type="button">후보에서 빼기</button>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -833,7 +842,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20i";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20j";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -902,6 +911,8 @@ let ST = { bands:[], members:{}, config:{}, hours:{}, notes:{}, songs:[], hist:[
 let B  = "";                  // 현재 밴드 id
 let me = "";                  // 현재 밴드에서 내 이름
 let sel = new Set(), noteDraft = {};
+/* noneSel = 내가 "전부 불가"로 찍은 날. 아무것도 안 한 날(—, 미정)과 구분한다 (2026-09-20 Benny) */
+let noneSel = new Set();
 let dirty = false, saving = false, saveTimer = null;
 let thresh = null, pick = null;
 let focusName = null;      // 결과 탭에서 '이 사람만 보기'
@@ -1057,10 +1068,13 @@ function applyConfig(){
    이름을 바꿀 때처럼 일부러 새로 불러와야 할 때만 force 를 준다. */
 function loadMine(force){
   if (!force && (dirty || saving)) return;
-  sel = new Set(); noteDraft = {};
+  sel = new Set(); noteDraft = {}; noneSel = new Set();
   if (!me) return;
   const mine = hoursOf()[me] || {};
-  for (const d of cfg().dates) (mine[d] || []).forEach(h => sel.add(key(d,h)));
+  for (const d of cfg().dates){
+    (mine[d] || []).forEach(h => sel.add(key(d,h)));
+    if (Array.isArray(mine[d]) && !mine[d].length) noneSel.add(d);
+  }
   const mn = (notesOf()[me] || {});
   for (const d of cfg().dates) if (mn[d]) noteDraft[d] = mn[d];
 }
@@ -1230,7 +1244,7 @@ $("#whoKeep").onclick   = () => { whoOpen = false; renderMembers(); };
 
 /* 내 칸의 시간 — 저장 전이라도 지금 칠해둔 걸 보여준다 */
 function myHours(d){ return hoursFor(d).filter(h => sel.has(key(d,h))); }
-function myAnswered(d){ return Array.isArray((hoursOf()[me] || {})[d]) || dirty; }
+function myAnswered(d){ return myHours(d).length > 0 || noneSel.has(d); }
 
 /** 스프레드시트처럼: 줄 = 멤버(나 먼저), 칸 = 날짜, 내용 = 되는 시간 + 메모 */
 function renderSheet(){
@@ -1282,7 +1296,7 @@ function renderSheet(){
       const sp = document.createElement("span");
       if (ans && hrs && hrs.length){ sp.className = "hr ok"; sp.textContent = runsOf(hrs, true); }
       else if (ans){ sp.className = "hr no"; sp.textContent = "✗"; }
-      else { sp.className = "hr none"; sp.textContent = mine ? "＋" : "—"; }
+      else { sp.className = "hr none"; sp.textContent = "—"; }   // 아직 안 정함 (내 칸도 같게)
       b.appendChild(sp);
       if (memo){ const m = document.createElement("span"); m.className = "mm"; m.textContent = memo; b.appendChild(m); }
       b.title = n + " · " + fmtFull(d);
@@ -1431,20 +1445,35 @@ function renderDmHours(){
     b.onclick = () => {
       const k = key(dmDate, h);
       sel.has(k) ? sel.delete(k) : sel.add(k);
-      b.setAttribute("aria-pressed", String(sel.has(k)));
-      paintGrid(); renderSheet(); touch();
+      renderDmHours(); paintGrid(); renderSheet(); touch();
     };
     box.appendChild(b);
   });
+  const all = hoursFor(dmDate).every(h => sel.has(key(dmDate, h)));
+  $("#dmAll").setAttribute("aria-pressed", String(all));
+  $("#dmNone").setAttribute("aria-pressed", String(noneSel.has(dmDate)));
 }
-$("#dmAll").onclick  = () => { if (!dmDate) return; hoursFor(dmDate).forEach(h => sel.add(key(dmDate, h)));    renderDmHours(); paintGrid(); renderSheet(); touch(); };
-$("#dmNone").onclick = () => { if (!dmDate) return; hoursFor(dmDate).forEach(h => sel.delete(key(dmDate, h))); renderDmHours(); paintGrid(); renderSheet(); touch(); };
+/* 전부 가능(초록) / 전부 불가(빨강). 켜진 걸 다시 누르면 '아직 안 정함'으로 돌아간다 */
+$("#dmAll").onclick  = () => {
+  if (!dmDate) return;
+  const hs = hoursFor(dmDate), all = hs.every(h => sel.has(key(dmDate, h)));
+  hs.forEach(h => all ? sel.delete(key(dmDate, h)) : sel.add(key(dmDate, h)));
+  noneSel.delete(dmDate);
+  renderDmHours(); paintGrid(); renderSheet(); touch();
+};
+$("#dmNone").onclick = () => {
+  if (!dmDate) return;
+  hoursFor(dmDate).forEach(h => sel.delete(key(dmDate, h)));
+  noneSel.has(dmDate) ? noneSel.delete(dmDate) : noneSel.add(dmDate);
+  renderDmHours(); paintGrid(); renderSheet(); touch();
+};
 
 function openDay(d){
   dmDate = d;
   $("#dmTitle").textContent = fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
   $("#dmMine").hidden = !me;
+  $("#dmSet").open = false;
   renderDmAdmin(d);
   renderDmHours();
 
@@ -1492,6 +1521,7 @@ $("#dmSave").onclick = () => {
 /* ═══════════════ 응답 저장 ═══════════════ */
 function touch(){
   dirty = true;
+  noneSel.forEach(d => { if (myHours(d).length) noneSel.delete(d); });   // 시간을 칠하면 '불가'는 풀린다
   setStatus("변경됨 — 곧 저장됩니다");
   renderSheet();
   clearTimeout(saveTimer);
@@ -1505,14 +1535,19 @@ async function save(){
   setStatus("저장 중…");
   const payload = { hours:{}, notes:{} };
   cfg().dates.forEach(d => {
-    payload.hours[d] = hoursFor(d).filter(h => sel.has(key(d,h)));
+    const hs = hoursFor(d).filter(h => sel.has(key(d,h)));
+    /* 시간 있음 → [..] / 전부 불가 → [] / 안 정함 → null (서버가 그 줄을 지운다, v12~) */
+    payload.hours[d] = hs.length ? hs : (noneSel.has(d) ? [] : null);
     payload.notes[d] = noteDraft[d] || "";
   });
   /* 결과 탭이 서버를 기다리지 않게 내 응답을 먼저 반영한다 */
   const backup = JSON.stringify({ h: ST.hours, n: ST.notes });
   if (!ST.hours[B]) ST.hours[B] = {};
   if (!ST.notes[B]) ST.notes[B] = {};
-  ST.hours[B][me] = payload.hours;
+  const keep = {}, prev = ST.hours[B][me] || {};
+  for (const d in prev) if (!(d in payload.hours)) keep[d] = prev[d];          // 후보에서 뺀 날 응답은 그대로
+  for (const d in payload.hours) if (payload.hours[d] !== null) keep[d] = payload.hours[d];
+  ST.hours[B][me] = keep;
   ST.notes[B][me] = {};
   for (const d in payload.notes) if (payload.notes[d]) ST.notes[B][me][d] = payload.notes[d];
   dirty = false;
@@ -2836,7 +2871,7 @@ $("#copyLink").onclick = async () => {
 $("#resetBtn").onclick = () => {
   if (!confirm("이 밴드의 모든 응답과 메모를 지웁니다. 계속할까요?")) return;
   act({ action:"reset_answers", band:B }, "초기화됨", () => {
-    ST.hours[B] = {}; ST.notes[B] = {}; sel = new Set(); noteDraft = {};
+    ST.hours[B] = {}; ST.notes[B] = {}; sel = new Set(); noteDraft = {}; noneSel = new Set();
   });
 };
 $("#calClear").onclick = () => {
@@ -2948,7 +2983,7 @@ $("#dmDrop").onclick = () => {
 };
 
 /* ═══════════════ 탭 ═══════════════ */
-$("#clearAll").onclick  = () => { sel.clear(); paintGrid(); touch(); };
+$("#clearAll").onclick  = () => { sel.clear(); noneSel.clear(); paintGrid(); touch(); };
 $("#saveBtn").onclick   = save;
 $("#reloadBtn").onclick = () => load(true);
 

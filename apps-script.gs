@@ -210,6 +210,9 @@ function put_(key, list) {
 
   _ROWS[key] = list;
   cache_().put(ckey_(key), JSON.stringify(list), CACHE_TTL);
+  /* 🚨 2026-09-20 사고: 읽을 때 _TOUCH 에 잡아둔 '옛 값'이 호출 끝 touchFlush_() 에서 캐시에 다시 써져
+     방금 쓴 내용을 덮었다 → 다음 쓰기가 옛 목록을 읽어 시트까지 되돌림. 쓴 탭은 touch 목록에서 뺀다. */
+  delete _TOUCH[ckey_(key)];
 }
 
 function uid_(p) {
@@ -540,6 +543,7 @@ function act_(action, p) {
     for (var d1 in ph) {
       if (!normDate_(d1)) continue;
       var arr = ph[d1];
+      if (arr === null) continue;          // null = 아직 안 정함 → 줄을 지우기만 한다 (v12)
       rl.push({ '밴드': band, '이름': name, '날짜': d1,
                 '시간': (!arr || !arr.length) ? '-' : arr.join(',') });
     }
