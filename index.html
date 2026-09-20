@@ -599,8 +599,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
             </select>
           </label>
         </div>
-        <label class="fld"><span>링크 — 한 줄에 하나. <code>라벨|주소</code> 로 이름을 붙일 수 있어요</span>
-          <textarea id="f_links" placeholder="라이브|https://youtu.be/...&#10;https://youtu.be/..."></textarea></label>
+        <label class="fld"><span>링크 — 주소만 붙여넣으면 돼요. 앞에 이름을 쓰면 그 이름으로</span>
+          <textarea id="f_links" placeholder="https://youtu.be/...&#10;라이브 https://youtu.be/..."></textarea>
+          <span class="hint" id="f_linkPrev" style="margin:0"></span></label>
         <div class="row nowrap">
           <label class="fld" style="flex:2 1 0"><span>세션 (파트: 이름, / 로 구분)</span><input type="text" id="f_parts" placeholder="보컬: 이경하 / 리드: 양관우 / 베이스: 박종찬 / 드럼: 나득균"></label>
           <label class="fld" style="flex:1 1 0"><span>튜닝</span><input type="text" id="f_tuning" placeholder="DROP D"></label>
@@ -814,7 +815,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20d";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20e";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1729,13 +1730,46 @@ const SONG_SPOTS = [
 ];
 function spotOf(st){ return st === "연습중" ? "연습중" : st === "후보" ? "후보" : "보류"; }
 
+/* 링크 칸은 자유롭게 (2026-09-20 Benny: "| 는 폰에서 안 써"). 주소만 찾아내고,
+   주소 **앞에 적은 글**이 그 링크 이름이 된다. 띄어쓰기·엔터·특수문자 뭐든 구분자로 OK.
+     "라이브 https://a 커버 https://b" / "라이브: https://a" / 옛 "라이브|https://a" / 주소만 → 사이트 이름
+   주소 뒤에만 글이 있으면(https://a 라이브) 그 글을 이름으로 쓴다. */
+const URL_RE = /(?:https?:\/\/|www\.|(?:m\.)?youtu(?:\.be|be\.com)\/)[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]+/gi;
+const LINK_SITES = [
+  [/youtu\.?be/i, "유튜브"], [/spotify/i, "스포티파이"], [/instagram/i, "인스타"],
+  [/soundcloud/i, "사운드클라우드"], [/music\.apple|apple\.co/i, "애플뮤직"], [/melon/i, "멜론"],
+  [/docs\.google/i, "문서"], [/drive\.google/i, "드라이브"], [/songsterr/i, "타브"], [/ultimate-guitar/i, "악보"]
+];
+function cleanLabel(t){
+  return String(t || "").replace(/^[\s|:：\-–—·,;>/=()\[\]]+|[\s|:：\-–—·,;<=/()\[\]]+$/g, "").replace(/\s+/g, " ").trim();
+}
+function siteName(u){ const f = LINK_SITES.find(([re]) => re.test(u)); return f ? f[1] : "링크"; }
 function parseLinks(s){
-  return String(s || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
-    const i = l.indexOf("|");
-    const o = i > 0 ? { label: l.slice(0,i).trim(), url: l.slice(i+1).trim() }
-                    : { label: "영상", url: l };
-    return o;
-  }).filter(x => /^https?:\/\//.test(x.url));
+  const out = []; let carry = "";                      // 주소 없는 줄의 글은 다음 주소의 이름으로
+  String(s || "").split(/\r?\n/).forEach(line => {
+    let last = 0, m, got = [];
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(line))){
+      let url = m[0].replace(/[.,;:!?)\]'"]+$/, "");
+      const before = cleanLabel(line.slice(last, m.index));
+      got.push({ label: before || (got.length ? "" : cleanLabel(carry)), url: /^https?:\/\//i.test(url) ? url : "https://" + url });
+      last = m.index + url.length;
+      URL_RE.lastIndex = last;
+    }
+    if (!got.length){ carry = (carry + " " + line).trim(); return; }
+    carry = "";
+    const tail = cleanLabel(line.slice(last));
+    if (tail && !got[got.length-1].label) got[got.length-1].label = tail;   // "주소 라이브"
+    out.push(...got);
+  });
+  const count = {};
+  out.forEach(o => { if (!o.label){ const n = siteName(o.url); count[n] = (count[n] || 0) + 1; o.label = n + (count[n] > 1 ? " " + count[n] : ""); } });
+  return out;
+}
+function renderLinkPreview(){
+  const box = $("#f_linkPrev"); if (!box) return;
+  const l = parseLinks($("#f_links").value);
+  box.textContent = l.length ? "→ " + l.map(x => x.label).join(" · ") : "";
 }
 
 /** 곡별 합주 횟수와 첫 합주일 (취소 회차 제외) */
@@ -2065,6 +2099,7 @@ function openSongForm(s){
   $("#f_picker").value = s ? s.picker : (me || "");
   $("#f_status").value = s ? spotOf(s.status) : (songView === "후보" ? "후보" : songView === "지난" ? "보류" : "연습중");
   $("#f_links").value  = s ? s.links  : "";
+  renderLinkPreview();
   $("#f_parts").value  = s ? s.parts  : "";
   $("#f_tuning").value = s ? s.tuning : "";
   $("#f_memo").value   = s ? s.memo   : "";
@@ -2077,6 +2112,7 @@ function closeSongForm(){ songEditing = null; $("#songForm").hidden = true; }
 $("#archHead").onclick   = () => { archOpen = !archOpen; renderArchive(); };
 $("#resortBtn").onclick  = () => { resortVotes(); renderSongs(); setStatus("좋아요 순으로 정렬했습니다", "ok"); };
 $("#songNew").onclick    = () => openSongForm(null);
+$("#f_links").oninput  = renderLinkPreview;
 $("#songCancel").onclick = closeSongForm;
 $("#songSave").onclick   = async () => {
   const p = {
