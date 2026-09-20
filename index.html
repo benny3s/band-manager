@@ -194,6 +194,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .modal .sheet{background:var(--card);width:100%;max-width:560px;border-radius:16px 16px 0 0;
   padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto;
   box-shadow:0 -8px 28px rgba(0,0,0,.18)}
+.modal#gridModal,.modal#heatModal{z-index:55}
+.modal .sheet.tall{max-height:92vh}
+.subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
+.sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.sheettools .btn{flex:1 1 auto}
 .dm-sum{color:var(--muted);font-size:12.5px;margin:2px 0 12px}
 .dm-row{padding:10px 0;border-top:1px solid var(--line);font-size:13.5px}
 .dm-row .n{font-weight:700}
@@ -448,12 +453,6 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 
   <!-- ══════════ 일정 ══════════ -->
   <section id="view-answer">
-    <div class="card" id="bestCard">
-      <h2>추천 시간</h2>
-      <p class="hint">연속 2시간 이상 모두(또는 N명)가 되는 때. 예약은 여기서 고르면 됩니다.</p>
-      <div class="row tight" id="threshChips" style="margin-bottom:12px"></div>
-      <div class="best" id="best"></div>
-    </div>
 
 
     <!-- 날짜나 멤버가 아직 없을 때 -->
@@ -470,10 +469,14 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     <div class="card" id="sheetCard" hidden>
       <div class="spread">
         <div style="min-width:0">
-          <h2 style="margin:0">모두의 시간</h2>
+          <h2 style="margin:0">가능 시간표</h2>
           <span class="hint" style="margin:0" id="sheetHint"></span>
         </div>
-        <button class="btn sm" id="dateEdit" type="button" style="flex:0 0 auto">날짜 고르기</button>
+      </div>
+      <div class="sheettools">
+        <button class="btn sm primary" id="heatOpenBtn" type="button">결과 보기</button>
+        <button class="btn sm" id="gridOpenBtn" type="button">✎ 한꺼번에 입력</button>
+        <button class="btn sm" id="dateEdit" type="button">날짜 고르기</button>
       </div>
       <p class="hint" style="margin:6px 0 0">
         <b>내 줄</b> 칸을 누르면 그 날 시간을 고르고, 다른 칸은 그 날 사정을 봅니다.
@@ -481,46 +484,6 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </p>
       <div class="grid-wrap" style="margin-top:12px"><table class="sheet" id="sheet"></table></div>
     </div>
-
-    <!-- 시간별로 몇 명 되는지 (기본은 접힘) -->
-    <div class="card" id="heatCard">
-      <button class="cardhead" id="heatHead" type="button">
-        <div class="hgrow">
-          <h2 style="margin:0">시간별 인원</h2>
-          <p class="hint" style="margin:2px 0 0">몇 시에 몇 명 되는지 칸마다 보기</p>
-        </div>
-        <span class="caret">▼</span>
-      </button>
-      <div class="det" id="heatBody" hidden>
-        <p class="hint" id="heatHint" style="margin:10px 0 0">숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.</p>
-        <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="heat"></div></div>
-        <div id="heatDetail"></div>
-      </div>
-    </div>
-
-    <!-- 격자로 한 번에 칠하고 싶을 때 (기본은 접힘) -->
-    <div class="card" id="answerCard" hidden>
-      <button class="cardhead" id="gridHead" type="button">
-        <div class="hgrow">
-          <h2 style="margin:0">격자로 한 번에 칠하기</h2>
-          <p class="hint" style="margin:2px 0 0">여러 날을 한꺼번에 끌어서 칠할 때</p>
-        </div>
-        <span class="caret">▼</span>
-      </button>
-      <div class="det" id="gridBody" hidden>
-        <div class="spread" style="margin-top:10px">
-          <p class="hint" style="margin:0">칸을 누른 채 끌면 여러 칸이 칠해집니다. 날짜·시간 라벨은 그 줄 전체.</p>
-          <button class="btn ghost" id="clearAll" style="flex:0 0 auto;white-space:nowrap">전체 지우기</button>
-        </div>
-        <div class="grid-wrap" style="margin-top:10px"><div class="grid" id="grid"></div></div>
-        <div class="legend">
-          <span><i style="background:var(--accent);border-color:var(--accent)"></i>가능</span>
-          <span><i style="background:var(--card)"></i>불가</span>
-          <span>칸 구석 숫자 = 다른 멤버 중 되는 사람</span>
-        </div>
-      </div>
-    </div>
-
 
     <!-- 후보에서 뺀 날짜의 응답·메모는 지워지지 않고 여기에 접혀서 남는다 -->
     <div class="card" id="archCard" hidden>
@@ -540,6 +503,46 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       <div id="noteDigest"><div id="noteList"></div></div>
     </div>
   </section>
+
+  <!-- 한꺼번에 입력 — 격자를 끌어서 여러 칸을 한 번에. 다른 창(그 날 창)이 이 위에 뜰 수 있게 z-index 를 낮춤 -->
+  <div class="modal" id="gridModal" hidden>
+    <div class="sheet tall" role="dialog" aria-modal="true">
+      <div class="spread">
+        <h2 style="margin:0">한꺼번에 입력</h2>
+        <button class="btn primary sm" id="gridDone" type="button">다 했어요</button>
+      </div>
+      <div class="spread" style="margin-top:8px">
+        <p class="hint" style="margin:0">칸을 누른 채 끌면 여러 칸이 칠해져요. 날짜·시간 라벨을 누르면 그 줄 전체. 자동 저장.</p>
+        <button class="btn ghost" id="clearAll" style="flex:0 0 auto;white-space:nowrap">전체 지우기</button>
+      </div>
+      <div class="grid-wrap" style="margin-top:10px"><div class="grid" id="grid"></div></div>
+      <div class="legend">
+        <span><i style="background:var(--accent);border-color:var(--accent)"></i>가능</span>
+        <span><i style="background:var(--card)"></i>불가</span>
+        <span>칸 구석 숫자 = 다른 멤버 중 되는 사람</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 — 추천 시간 + 시간별 인원 -->
+  <div class="modal" id="heatModal" hidden>
+    <div class="sheet tall" role="dialog" aria-modal="true">
+      <div class="spread">
+        <h2 style="margin:0">결과</h2>
+        <button class="btn ghost" type="button" data-close>닫기</button>
+      </div>
+      <div id="bestCard">
+        <h3 class="subh">추천 시간</h3>
+        <p class="hint">연속 2시간 이상 모두(또는 N명)가 되는 때. 예약은 여기서 고르면 됩니다.</p>
+        <div class="row tight" id="threshChips" style="margin-bottom:12px"></div>
+        <div class="best" id="best"></div>
+      </div>
+      <h3 class="subh" style="margin-top:18px">시간별 인원</h3>
+      <p class="hint" id="heatHint" style="margin:4px 0 0">숫자 = 그 시간에 가능한 인원. 칸을 누르면 누가 되고 누가 안 되는지 나옵니다.</p>
+      <div class="grid-wrap" style="margin-top:12px"><div class="grid" id="heat"></div></div>
+      <div id="heatDetail"></div>
+    </div>
+  </div>
 
   <!-- 날짜별 사유 — 표 위 '사유' 칸을 누르면 뜬다. 다른 멤버의 사유·가능 시간도 같이 보인다 -->
   <div class="modal" id="dayModal" hidden>
@@ -830,7 +833,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20g";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20h";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1099,7 +1102,7 @@ function renderAll(){
   $("#emptyDates").hidden = hasDates;
   $("#emptyMember").hidden = hasMem;
   $("#bestCard").hidden = !(hasDates && hasMem);
-  $("#heatCard").hidden = !(hasDates && hasMem);
+  $("#heatOpenBtn").hidden = !(hasDates && hasMem);
   renderHeatFold();
 
   renderMembers();
@@ -1214,15 +1217,13 @@ function renderMembers(){
   $("#whoKeep").hidden = !me;
   if (me) $("#whoName").textContent = me;
   $("#sheetCard").hidden  = !cfg().dates.length || !members().length;
-  $("#answerCard").hidden = !has;
-  $("#answerCard").classList.toggle("on", gridOpen);
-  $("#gridBody").hidden = !gridOpen;
+  $("#gridOpenBtn").hidden = !has;
   $("#saveBtn").hidden    = !(view === "answer" && has);
   renderSheet();
 }
 
-let gridOpen = false;
-$("#gridHead").onclick = () => { gridOpen = !gridOpen; renderMembers(); };
+$("#gridOpenBtn").onclick = () => { renderGrid(); openModal("gridModal"); };
+$("#gridDone").onclick    = () => { closeModal("gridModal"); if (dirty && !saving) save(); };
 /* 바꾸기 = 이름 목록만 펼친다. 지금 이름은 그대로(초록), 같은 이름이나 '그대로' 누르면 다시 접힘 */
 $("#whoChange").onclick = () => { whoOpen = true; renderMembers(); };
 $("#whoKeep").onclick   = () => { whoOpen = false; renderMembers(); };
@@ -2859,19 +2860,20 @@ function openModal(id){
 }
 function closeModal(id){ $("#" + id).hidden = true; }
 $$(".modal [data-close]").forEach(b => b.addEventListener("click", () => b.closest(".modal").hidden = true));
-["calModal", "bandModal", "memModal"].forEach(id =>
+["calModal", "bandModal", "memModal", "gridModal", "heatModal"].forEach(id =>
   $("#" + id).addEventListener("click", e => { if (e.target.id === id) closeModal(id); }));
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  ["calModal", "bandModal", "memModal", "dayModal"].forEach(id => { $("#" + id).hidden = true; });
+  // 위에 뜬 창부터 하나씩 닫는다 (그 날 창이 한꺼번에 입력 위에 떠 있을 수 있음)
+  const open = ["dayModal", "calModal", "bandModal", "memModal", "gridModal", "heatModal"].find(id => !$("#" + id).hidden);
+  if (open) $("#" + open).hidden = true;
 });
 
 $("#dateEdit").onclick   = () => openModal("calModal");
 $("#emptyDates").onclick = () => openModal("calModal");
 $("#emptyMember").onclick = () => addMemberPrompt();
-$("#heatHead").onclick   = () => { heatOpen = !heatOpen; renderHeatFold(); };
-let heatOpen = false;
-function renderHeatFold(){ $("#heatCard").classList.toggle("on", heatOpen); $("#heatBody").hidden = !heatOpen; }
+$("#heatOpenBtn").onclick = () => openModal("heatModal");
+function renderHeatFold(){}
 
 function addMemberPrompt(){
   const v = (prompt("새 멤버 이름") || "").trim();
