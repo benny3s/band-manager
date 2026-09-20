@@ -203,6 +203,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .tcol .cardhead{padding:14px 16px}
 .tcol h2{margin:0;font-size:16px}
 .tadd-card{padding:8px}
+.dowrow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:6px}
+.dowrow button{appearance:none;font:inherit;font-weight:700;font-size:14px;min-height:44px;border-radius:10px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);touch-action:manipulation}
+.dowrow button.sun{color:var(--warn)} .dowrow button.sat{color:#3a6fb0}
+.dowrow button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn.tadd{width:100%;border:1.5px dashed var(--line);background:transparent;border-radius:11px;color:var(--accent);margin:0;min-height:46px}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
@@ -753,9 +758,19 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
       <div class="cal" id="cal"></div>
       <div class="row tight" style="margin-top:12px">
-        <button class="btn" id="calDow0">일요일 전부</button>
-        <button class="btn" id="calDow6">토요일 전부</button>
-        <button class="btn ghost" id="calToday">오늘 달로</button>
+        <span class="hint" style="margin:0;width:100%;font-size:12.5px">이 달의 요일 전부 넣기/빼기</span>
+      </div>
+      <div class="dowrow" id="dowRow">
+        <button type="button" id="calDow1" data-dow="1">월</button>
+        <button type="button" id="calDow2" data-dow="2">화</button>
+        <button type="button" id="calDow3" data-dow="3">수</button>
+        <button type="button" id="calDow4" data-dow="4">목</button>
+        <button type="button" id="calDow5" data-dow="5">금</button>
+        <button type="button" id="calDow6" data-dow="6" class="sat">토</button>
+        <button type="button" id="calDow0" data-dow="0" class="sun">일</button>
+      </div>
+      <div class="row tight" style="margin-top:6px;justify-content:flex-end">
+        <button class="btn ghost sm" id="calToday">오늘로 이동</button>
       </div>
       <details class="fold">
         <summary>기간으로 한 번에 (여러 달 걸쳐서)</summary>
@@ -888,7 +903,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20p";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20q";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -2590,6 +2605,7 @@ async function saveDates(){
 function renderCal(){
   if (!Number.isFinite(calY) || !Number.isFinite(calM)) calToday_();
   $("#calYM").textContent = calY + "년 " + (calM + 1) + "월";
+  paintDowRow();
   const cal = $("#cal"); cal.innerHTML = "";
   DOW.forEach((w, i) => {
     const h = document.createElement("div");
@@ -2989,8 +3005,16 @@ $("#calClear").onclick = () => {
 $("#calPrev").onclick  = () => calShift_(-1);
 $("#calNext").onclick  = () => calShift_(+1);
 $("#calToday").onclick = () => { calToday_(); renderCal(); };
-$("#calDow0").onclick  = () => toggleDow(0);
-$("#calDow6").onclick  = () => toggleDow(6);
+$$("#dowRow button").forEach(b => b.onclick = () => toggleDow(+b.dataset.dow));
+/** 요일 버튼: 이 달에 남은 그 요일이 전부 들어가 있으면 켜진 모양 */
+function paintDowRow(){
+  const days = new Date(calY, calM + 1, 0).getDate(), today = iso(new Date());
+  $$("#dowRow button").forEach(b => {
+    const dow = +b.dataset.dow, hits = [];
+    for (let n = 1; n <= days; n++){ const o = new Date(calY, calM, n), d = iso(o); if (o.getDay() === dow && d >= today) hits.push(d); }
+    b.setAttribute("aria-pressed", String(hits.length > 0 && hits.every(d => dsel.has(d))));
+  });
+}
 
 /* ═══════════════ 창(모달) 공통 ═══════════════ */
 function openModal(id){
