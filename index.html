@@ -199,6 +199,19 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
+.tbar-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 22px 6px 22px;margin:0 -16px;touch-action:pan-x}
+.tbar{display:flex;gap:3px;width:max-content}
+.tbar .tb{position:relative;appearance:none;border:0;width:52px;height:48px;border-radius:4px;background:var(--soft);
+  cursor:pointer;touch-action:pan-x;font:inherit;font-weight:700;color:transparent;padding:0}
+.tbar .tb[aria-pressed="true"]{background:var(--accent)}
+.tbar .tb.x{background:rgba(180,71,47,.12);color:var(--warn);font-size:18px}
+.tbar .tb::before{content:attr(data-l);position:absolute;top:-21px;left:-18px;width:36px;text-align:center;
+  font-size:11.5px;font-weight:500;color:var(--muted)}
+.tbar .tb.last::after{content:attr(data-e);position:absolute;top:-21px;right:-19px;width:36px;text-align:center;
+  font-size:11.5px;font-weight:500;color:var(--muted)}
+.tbar .tb::before,.tbar .tb.last::after{border-left:0}
+.dm-state{font-weight:700;font-size:15px}
+.dm-state.ok{color:var(--accent)} .dm-state.no{color:var(--warn)} .dm-state.u{color:var(--muted)}
 .seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .seg4 button{appearance:none;font:inherit;font-size:13.5px;font-weight:600;min-height:44px;border-radius:11px;
   border:1px solid var(--line);background:var(--bg);color:var(--muted);touch-action:manipulation;padding:0 4px}
@@ -564,18 +577,16 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
       <p class="dm-sum" id="dmSum"></p>
       <div id="dmMine">
-        <span class="hint" style="margin:0 0 6px;display:block">이 날 나는</span>
-        <!-- 네 가지 중 하나만. 아무것도 안 했으면 '미정' -->
-        <div class="seg4" id="dmMode" role="radiogroup">
-          <button type="button" data-m="undecided" class="m-u">미정</button>
-          <button type="button" data-m="all"       class="m-a">전부 가능</button>
-          <button type="button" data-m="some"      class="m-s">일부 가능</button>
-          <button type="button" data-m="no"        class="m-n">불가</button>
+        <div class="spread" style="margin-bottom:4px">
+          <span class="dm-state" id="dmState">미정</span>
+          <span class="row tight" style="flex:0 0 auto">
+            <button class="btn ghost sm" id="dmClear" type="button">비우기</button>
+            <button class="btn ghost sm danger" id="dmNo" type="button">✗ 불가</button>
+          </span>
         </div>
-        <div id="dmSome" hidden>
-          <span class="hint" style="margin:10px 0 6px;display:block">되는 시간만 눌러주세요</span>
-          <div class="chips" id="dmHours"></div>
-        </div>
+        <p class="hint" style="margin:0;font-size:12.5px">되는 시간 칸을 누르세요. 다시 누르면 꺼져요.</p>
+        <!-- 가로 시간 바 — 시간대가 길면 옆으로 스크롤 -->
+        <div class="tbar-wrap" id="dmBarWrap"><div class="tbar" id="dmHours"></div></div>
         <label class="fld" style="margin-top:12px"><span>사유 · 메모 (선택)</span>
           <input type="text" id="dmInput" maxlength="200" placeholder="예: 출장, 결혼식, 오후만 가능"></label>
         <div class="row" style="justify-content:flex-end;margin:8px 0 14px">
@@ -852,7 +863,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20k";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20l";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1443,51 +1454,47 @@ function othersAt(d, h){
 /* 예전엔 표 아래에 날짜별 입력칸을 줄줄이 늘어놨는데, 표 위 '사유' 칸 → 창으로 옮겼다 */
 function renderNotes(){}
 
-let dmDate = null, dmPartial = false;      // dmPartial: '일부 가능'을 눌러 시간을 고르는 중
-/** 그 날 내 상태: undecided(미정) / all / some / no */
-function dayMode(d){
-  const hs = hoursFor(d), n = hs.filter(h => sel.has(key(d,h))).length;
-  if (n && n === hs.length && !dmPartial) return "all";
-  if (n) return "some";
-  if (noneSel.has(d)) return "no";
-  return dmPartial ? "some" : "undecided";
-}
+let dmDate = null;
+/* 그 날 창: 가로 시간 바 하나. 켠 칸 = 가능, 아무것도 없음 = 미정, '✗ 불가' = 칸마다 ✗ (2026-09-20 Benny) */
 function renderDmHours(){
   const box = $("#dmHours"); box.innerHTML = "";
   if (!me || !dmDate) return;
-  const mode = dayMode(dmDate);
-  $$("#dmMode button").forEach(b => { b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(b.dataset.m === mode)); });
-  $("#dmSome").hidden = (mode !== "some");
-  hoursFor(dmDate).forEach(h => {
+  const d = dmDate, hs = hoursFor(d), no = noneSel.has(d);
+  const on = hs.filter(h => sel.has(key(d,h)));
+  hs.forEach((h, i) => {
     const b = document.createElement("button");
-    b.type = "button"; b.className = "chip sm";
-    b.textContent = h + "시";
-    b.setAttribute("aria-pressed", String(sel.has(key(dmDate, h))));
+    b.type = "button"; b.className = "tb" + (no ? " x" : "") + (i === hs.length - 1 ? " last" : "");
+    b.dataset.h = h; b.dataset.l = hh(h); b.dataset.e = hh(h + 1);
+    b.textContent = no ? "✗" : "";
+    b.setAttribute("aria-label", h + "시");
+    b.setAttribute("aria-pressed", String(sel.has(key(d, h))));
     b.onclick = () => {
-      const k = key(dmDate, h);
+      const k = key(d, h);
       sel.has(k) ? sel.delete(k) : sel.add(k);
-      noneSel.delete(dmDate); dmPartial = true;
+      noneSel.delete(d);
       renderDmHours(); paintGrid(); renderSheet(); touch();
     };
     box.appendChild(b);
   });
+  const st = $("#dmState");
+  if (on.length){ st.textContent = runsOf(on) + " 가능"; st.className = "dm-state ok"; }
+  else if (no){ st.textContent = "이 날 불가"; st.className = "dm-state no"; }
+  else        { st.textContent = "미정 — 아직 안 정함"; st.className = "dm-state u"; }
+  $("#dmNo").setAttribute("aria-pressed", String(no));
 }
-$$("#dmMode button").forEach(b => b.onclick = () => {
+$("#dmClear").onclick = () => {
   const d = dmDate; if (!d) return;
-  const hs = hoursFor(d), m = b.dataset.m;
-  if (m === "some"){
-    dmPartial = true; noneSel.delete(d);          // 전부 가능에서 왔으면 칠해진 채로 빼기만 하면 된다
-  } else {
-    dmPartial = false;
-    hs.forEach(h => m === "all" ? sel.add(key(d,h)) : sel.delete(key(d,h)));
-    m === "no" ? noneSel.add(d) : noneSel.delete(d);
-  }
+  hoursFor(d).forEach(h => sel.delete(key(d,h))); noneSel.delete(d);
   renderDmHours(); paintGrid(); renderSheet(); touch();
-});
+};
+$("#dmNo").onclick = () => {
+  const d = dmDate; if (!d) return;
+  hoursFor(d).forEach(h => sel.delete(key(d,h))); noneSel.add(d);
+  renderDmHours(); paintGrid(); renderSheet(); touch();
+};
 
 function openDay(d){
-  dmDate = d; dmPartial = false;
-  if (me && dayMode(d) === "some") dmPartial = true;
+  dmDate = d;
   $("#dmTitle").textContent = fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
   $("#dmMine").hidden = !me;
