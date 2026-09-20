@@ -357,6 +357,11 @@ table.sum td.n b{color:var(--ink);font-weight:700}
 table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
 table.sum td.go{color:var(--muted);text-align:right;font-size:15px;line-height:1.2;opacity:.55;padding-left:0}
 table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
+.histsec{font-size:12.5px;font-weight:700;color:var(--muted);margin:4px 2px 8px}
+.item.next{border:2px solid var(--accent);background:var(--soft)}
+.item.pastbox{margin-top:18px}
+.item.pastbox .det > .item{margin:8px 0 0;box-shadow:none}
+.item.past .ttl{color:var(--muted)}
 .item.flash{outline:2px solid var(--accent);outline-offset:2px}
 /* 접히는 카드 */
 .cardhead{display:flex;width:100%;align-items:flex-start;gap:10px;appearance:none;border:0;
@@ -364,7 +369,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 .cardhead .hgrow{flex:1 1 auto;min-width:0}
 .cardhead .caret{flex:0 0 auto;color:var(--muted);font-size:11px;margin-top:5px;
   transition:transform .15s ease}
-.item.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
+.item.on > .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
 .card.on .cardhead .caret{transform:rotate(180deg);color:var(--accent)}
 .arch{border-top:1px solid var(--line);padding-top:11px;margin-top:11px}
 .arch:first-child{border-top:0;padding-top:0;margin-top:0}
@@ -564,7 +569,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       <div class="chips" id="songSeg"></div>
       <div class="spread" style="margin-top:14px">
         <div style="min-width:0">
-          <h2 id="songHead">지금 하는 곡</h2>
+          <h2 id="songHead">후보곡</h2>
           <p class="hint" style="margin-bottom:0" id="songSummary"></p>
         </div>
         <button class="btn primary sm" id="songNew" style="flex:0 0 auto">곡 추가</button>
@@ -590,7 +595,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
           <label class="fld" style="flex:1 1 0"><span>선곡자</span><input type="text" id="f_picker"></label>
           <label class="fld" style="flex:1 1 0"><span>상태</span>
             <select id="f_status">
-              <option value="후보">후보곡</option><option value="연습중">지금 하는 곡</option><option value="완료">지난 곡</option>
+              <option value="연습중">후보곡</option><option value="후보">투표곡</option><option value="보류">보류</option>
             </select>
           </label>
         </div>
@@ -809,7 +814,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20c";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20d";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1715,14 +1720,14 @@ function renderResult(){
 }
 
 /* ═══════════════ 곡 ═══════════════ */
-/* 상태 이동은 **한 곡에 버튼 하나**만 (2026-09-20 Benny: "다 한 곡으로 내리기, 잠시 접어두기 필요해?").
-   완료/보류 구분은 없앴다. 지난 곡에 있는 옛 '보류' 곡도 '다시 합주곡으로' 하나로 돌아온다. */
-const NEXT_MOVE = {
-  "후보":   { to:"연습중", label:"합주곡으로 올리기" },
-  "연습중": { to:"완료",   label:"지난 곡으로 보내기" },
-  "완료":   { to:"연습중", label:"다시 합주곡으로" },
-  "보류":   { to:"연습중", label:"다시 합주곡으로" }
-};
+/* 곡은 세 갈래: 후보곡(합주에서 맞추는 곡) · 투표곡(고르는 중) · 보류(접어둔 곡). (2026-09-20 Benny)
+   어느 칸에서든 나머지 두 칸으로 바로 옮길 수 있다. 저장 값은 그대로(연습중/후보/보류, 옛 '완료'는 보류 칸). */
+const SONG_SPOTS = [
+  { to:"연습중", name:"후보곡", label:"후보곡으로" },
+  { to:"후보",   name:"투표곡", label:"투표곡으로" },
+  { to:"보류",   name:"보류",   label:"보류로" }
+];
+function spotOf(st){ return st === "연습중" ? "연습중" : st === "후보" ? "후보" : "보류"; }
 
 function parseLinks(s){
   return String(s || "").split("\n").map(l => l.trim()).filter(Boolean).map(l => {
@@ -1753,17 +1758,17 @@ function voteTally(id){
   return { up, down, mine: v[me] };
 }
 
-/* 곡 화면은 세 갈래로 나뉜다. 지금 하는 곡과 후보곡 투표를 한 목록에 섞지 않는다. */
+/* 곡 화면은 세 갈래로 나뉜다. 후보곡과 투표곡을 한 목록에 섞지 않는다. */
 const SONG_VIEWS = [
-  { key:"연습중", tab:"지금 하는 곡", head:"지금 하는 곡", has:["연습중"],
-    hint:"합주에서 실제로 맞춰보고 있는 곡", empty:"아직 없습니다. 후보곡에서 올리거나 곡을 추가하세요.",
+  { key:"연습중", tab:"후보곡", head:"후보곡", has:["연습중"],
+    hint:"합주에서 맞춰보는 곡", empty:"아직 없습니다. 투표곡에서 옮기거나 곡을 추가하세요.",
     cols:["곡", "키"] },
-  { key:"후보",   tab:"후보곡 투표",  head:"후보곡 투표", has:["후보"],
-    hint:"다음에 뭘 할지 고르는 중. 좋아요 많은 순", empty:"후보곡이 없습니다. 곡 추가를 눌러 올려보세요.",
+  { key:"후보",   tab:"투표곡", head:"투표곡", has:["후보"],
+    hint:"다음에 뭘 할지 고르는 중. 좋아요 많은 순", empty:"투표곡이 없습니다. 곡 추가를 눌러 올려보세요.",
     cols:["곡", "선곡자", "좋아요"] },
-  { key:"지난",   tab:"지난 곡",      head:"지난 곡",     has:["완료","보류"],
-    hint:"끝냈거나 잠시 접어둔 곡", empty:"아직 없습니다.",
-    cols:["곡", "상태"] }
+  { key:"지난",   tab:"보류",   head:"보류",   has:["완료","보류"],
+    hint:"잠시 접어둔 곡. 언제든 다시 옮길 수 있어요", empty:"아직 없습니다.",
+    cols:["곡"] }
 ];
 let songView = "연습중";
 
@@ -1909,7 +1914,7 @@ function songCard(s, stat){
   }
   const pp = partPills(s.parts);                      // 접혀 있어도 누가 무슨 세션인지 보이게
 
-  /* 오른쪽: 지금 하는 곡은 키, 지난 곡은 상태, 후보곡은 ♥ (누르면 바로 좋아요) */
+  /* 오른쪽: 후보곡은 키, 투표곡은 ♥ (누르면 바로 좋아요) */
   const aside = document.createElement("div"); aside.className = "aside";
   if (s.status === "후보"){
     const tal = voteTally(s.id);
@@ -1923,8 +1928,6 @@ function songCard(s, stat){
       vote(s.id, tal.mine === 1 ? null : 1);
     };
     aside.appendChild(hb);
-  } else if (songView === "지난"){
-    aside.textContent = s.status === "보류" ? "보류" : "완료";
   } else if (s.key){
     aside.textContent = s.key;
   }
@@ -1936,7 +1939,6 @@ function songCard(s, stat){
     const p = document.createElement("span"); p.className = "pill " + (cls || "grey");
     p.textContent = txt; badges.appendChild(p);
   };
-  if (songView === "지난") addPill(s.status, s.status === "보류" ? "amber" : "");
   addPill(s.key, "");
   addPill(s.tuning, "amber");
   if (stat) addPill("합주 " + stat.n + "회 · " + fmtD(stat.first) + " 첫 합주", "grey");
@@ -1982,15 +1984,14 @@ function songCard(s, stat){
   }
 
   const acts = document.createElement("div"); acts.className = "acts";
-  const mv = NEXT_MOVE[s.status];
-  if (mv){
+  SONG_SPOTS.filter(p => p.to !== spotOf(s.status)).forEach(p => {
     const b = document.createElement("button");
     b.className = "btn ghost mv"; b.type = "button";
-    b.textContent = mv.label;
-    b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:mv.to }, s.title + " · " + mv.label,
-      () => { const t = songById(s.id); if (t) t.status = mv.to; });
+    b.textContent = "→ " + p.label;
+    b.onclick = () => act({ action:"song_status", band:B, id:s.id, status:p.to }, s.title + " · " + p.label + " 옮김",
+      () => { const t = songById(s.id); if (t) t.status = p.to; });
     acts.appendChild(b);
-  }
+  });
   const ed = document.createElement("button");
   ed.className = "btn ghost"; ed.textContent = "곡 정보 수정";
   ed.onclick = () => openSongForm(s);
@@ -2062,7 +2063,7 @@ function openSongForm(s){
   $("#f_artist").value = s ? s.artist : "";
   $("#f_key").value    = s ? s.key    : "";
   $("#f_picker").value = s ? s.picker : (me || "");
-  $("#f_status").value = s ? (s.status === "보류" ? "완료" : s.status) : (songView === "후보" ? "후보" : songView === "지난" ? "완료" : "연습중");
+  $("#f_status").value = s ? spotOf(s.status) : (songView === "후보" ? "후보" : songView === "지난" ? "보류" : "연습중");
   $("#f_links").value  = s ? s.links  : "";
   $("#f_parts").value  = s ? s.parts  : "";
   $("#f_tuning").value = s ? s.tuning : "";
@@ -2133,11 +2134,42 @@ function renderHist(){
     h.songs.forEach(id => seen.add(id));
   });
 
-  asc.forEach(h => box.appendChild(histCard(h, newOf[h.id] || [])));
-}
+  /* 오늘·앞으로의 합주가 맨 위에 강조, 지난 합주는 한 덩어리로 접는다 (2026-09-20 Benny: "헷갈려") */
+  const today = iso(new Date());
+  const up = asc.filter(h => h.date >= today), past = asc.filter(h => h.date < today);
 
-function histCard(h, fresh){
-  const el = document.createElement("div"); el.className = "item";
+  const uh = document.createElement("div"); uh.className = "histsec";
+  uh.textContent = "다가오는 합주";
+  box.appendChild(uh);
+  if (!up.length){
+    const e = document.createElement("div"); e.className = "empty"; e.style.padding = "14px";
+    e.textContent = "잡힌 합주가 없습니다. 회차 추가로 예정을 넣어보세요.";
+    box.appendChild(e);
+  }
+  const next = up.find(h => h.status !== "취소");
+  if (next && !histAutoOpen.has(next.id)){ histAutoOpen.add(next.id); openCards.add("h:" + next.id); }
+  up.forEach(h => {
+    const c = histCard(h, newOf[h.id] || [], today);
+    if (h === next) c.classList.add("next");
+    box.appendChild(c);
+  });
+
+  if (past.length){
+    const pb = document.createElement("div"); pb.className = "item pastbox";
+    const pt = document.createElement("div"); pt.className = "ttl";
+    pt.textContent = "지난 합주 " + past.length + "회";
+    const last = past[past.length - 1];
+    const pm = document.createElement("div"); pm.className = "meta";
+    pm.textContent = "마지막 " + fmtFull(last.date) + " · 누르면 펼쳐져요";
+    const det = foldable(pb, "h:past", [pt, pm]);
+    past.forEach(h => det.appendChild(histCard(h, newOf[h.id] || [], today)));
+    box.appendChild(pb);
+  }
+}
+const histAutoOpen = new Set();
+
+function histCard(h, fresh, today){
+  const el = document.createElement("div"); el.className = "item" + (today && h.date < today ? " past" : "");
 
   const top = document.createElement("div"); top.className = "spread";
   const t = document.createElement("div"); t.className = "ttl";
@@ -2145,8 +2177,10 @@ function histCard(h, fresh){
   if (h.status === "취소") t.style.textDecoration = "line-through";
   top.appendChild(t);
   const st = document.createElement("span");
-  st.className = "pill " + (h.status === "취소" ? "warn" : h.status === "예정" ? "grey" : "");
-  st.textContent = h.status;
+  const dd = today && h.date >= today && h.status !== "취소"
+    ? Math.round((dObj(h.date) - dObj(today)) / 864e5) : null;
+  st.className = "pill " + (h.status === "취소" ? "warn" : dd !== null ? "" : h.status === "예정" ? "grey" : "");
+  st.textContent = dd === 0 ? "오늘" : dd !== null ? "D-" + dd : h.status;
   top.appendChild(st);
 
   /* 접혀 있을 때도 시간·합주실·곡 수는 보이게 한다 */
@@ -2236,8 +2270,8 @@ function renderHistPickers(){
     ab.appendChild(b);
   });
   const sp = $("#h_songs"); sp.innerHTML = "";
-  const cand = songsOf().filter(s => s.status === "연습중" || s.status === "완료" || hSongs.has(s.id));
-  if (!cand.length) sp.innerHTML = '<span class="hint" style="margin:0">연습중인 곡이 없습니다.</span>';
+  const cand = songsOf().filter(s => s.status === "연습중" || s.status === "완료" || s.status === "보류" || hSongs.has(s.id));
+  if (!cand.length) sp.innerHTML = '<span class="hint" style="margin:0">후보곡이 없습니다.</span>';
   cand.forEach(s => {
     const b = document.createElement("button");
     b.className = "chip sm"; b.type = "button"; b.textContent = s.title;
