@@ -283,7 +283,10 @@ function parseTables_(raw) {
       if (nd && !seen[nd]) { seen[nd] = 1; keep.push(nd); }
     }
     keep.sort();
-    out.push({ id: id, name: String(t.name || ('시간표' + (i + 1))).slice(0, 30), dates: keep });
+    var o = { id: id, name: String(t.name || ('시간표' + (i + 1))).slice(0, 30), dates: keep };
+    var hs = parseInt(t.hs, 10), he = parseInt(t.he, 10);               // 시간표별 기본 시간대 (v15)
+    if (isFinite(hs) && isFinite(he) && hs >= 0 && he <= 24 && he > hs) { o.hs = hs; o.he = he; }
+    out.push(o);
   }
   return out;
 }
