@@ -229,6 +229,12 @@ function normDate_(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
 }
 
+/** 응답·메모·시간대 키: 첫 시간표는 날짜 그대로 "2026-10-04", 다른 시간표는 "<시간표id>~2026-10-04" (v14, 시간표끼리 응답 분리) */
+function normKey_(s) {
+  s = String(s || '').trim();
+  return /^(?:[A-Za-z0-9_-]{1,24}~)?\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+
 function splitList_(s) {
   var parts = String(s || '').split(/[,\n]/), out = [];
   for (var i = 0; i < parts.length; i++) {
@@ -250,7 +256,7 @@ function parseWindows_(raw) {
   if (!o || typeof o !== 'object') return out;
   var n = 0;
   for (var k in o) {
-    var d = normDate_(k); if (!d) continue;
+    var d = normKey_(k); if (!d) continue;
     var w = o[k]; if (!w || w.length !== 2) continue;
     var a = clampHour_(w[0], -1), b = clampHour_(w[1], -1);
     if (a < 0 || b < 0 || b <= a) continue;
@@ -379,7 +385,7 @@ function state_(pins) {
 
   var rs = rows_('resp');
   for (i2 = 0; i2 < rs.length; i2++) {
-    var rb = rs[i2]['밴드'], rn = rs[i2]['이름'], rd = normDate_(rs[i2]['날짜']);
+    var rb = rs[i2]['밴드'], rn = rs[i2]['이름'], rd = normKey_(rs[i2]['날짜']);
     if (!out.hours[rb] || !open[rb] || !rn || !rd) continue;
     var hh = parseHours_(rs[i2]['시간']);
     if (hh === null) continue;
@@ -389,7 +395,7 @@ function state_(pins) {
 
   var ns = rows_('note');
   for (i2 = 0; i2 < ns.length; i2++) {
-    var nb = ns[i2]['밴드'], nn = ns[i2]['이름'], ndd = normDate_(ns[i2]['날짜']);
+    var nb = ns[i2]['밴드'], nn = ns[i2]['이름'], ndd = normKey_(ns[i2]['날짜']);
     if (!out.notes[nb] || !open[nb] || !nn || !ndd || !ns[i2]['메모']) continue;
     if (!out.notes[nb][nn]) out.notes[nb][nn] = {};
     out.notes[nb][nn][ndd] = ns[i2]['메모'];
@@ -573,7 +579,7 @@ function act_(action, p) {
       return !(x['밴드'] === band && x['이름'] === name && ph[x['날짜']] !== undefined);
     });
     for (var d1 in ph) {
-      if (!normDate_(d1)) continue;
+      if (!normKey_(d1)) continue;
       var arr = ph[d1];
       if (arr === null) continue;          // null = 아직 안 정함 → 줄을 지우기만 한다 (v12)
       rl.push({ '밴드': band, '이름': name, '날짜': d1,
@@ -585,7 +591,7 @@ function act_(action, p) {
       return !(x['밴드'] === band && x['이름'] === name && pn[x['날짜']] !== undefined);
     });
     for (var d2 in pn) {
-      if (!normDate_(d2) || !pn[d2]) continue;
+      if (!normKey_(d2) || !pn[d2]) continue;
       nl.push({ '밴드': band, '이름': name, '날짜': d2, '메모': String(pn[d2]).slice(0, 200) });
     }
     put_('note', nl);
