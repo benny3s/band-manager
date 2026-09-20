@@ -620,6 +620,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
           <span class="dm-state" id="dmState">미정</span>
           <span class="row tight" style="flex:0 0 auto">
             <button class="btn ghost sm" id="dmClear" type="button">비우기</button>
+            <button class="btn ghost sm" id="dmYes" type="button" style="color:var(--accent)">✓ 가능</button>
             <button class="btn ghost sm danger" id="dmNo" type="button">✗ 불가</button>
           </span>
         </div>
@@ -922,7 +923,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20u";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20v";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1645,6 +1646,12 @@ function renderDmHours(){
 $("#dmClear").onclick = () => {
   const d = dmDate; if (!d) return;
   hoursFor(d).forEach(h => sel.delete(key(d,h))); noneSel.delete(d);
+  renderDmHours(); paintGrid(); renderSheet(); touch();
+};
+/* 그 날 시간대 전부 가능 (2026-09-20 Benny: "일일이 넣기 번거롭다") */
+$("#dmYes").onclick = () => {
+  const d = dmDate; if (!d) return;
+  hoursFor(d).forEach(h => sel.add(key(d,h))); noneSel.delete(d);
   renderDmHours(); paintGrid(); renderSheet(); touch();
 };
 $("#dmNo").onclick = () => {
