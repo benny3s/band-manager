@@ -197,8 +197,6 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .modal#gridModal,.modal#heatModal{z-index:55}
 .modal .sheet.tall{max-height:92vh}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
-#sheetTitle{cursor:pointer}
-#sheetTitle::after{content:" ✎";font-size:13px;font-weight:500;color:var(--muted)}
 .foldbtn{appearance:none;border:0;background:transparent;color:var(--muted);font-size:14px;min-width:44px;min-height:44px;
   margin:-8px -8px 0 0;cursor:pointer;flex:0 0 auto}
 .tcol{padding:0}
@@ -767,13 +765,13 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <span class="hint" style="margin:0;width:100%;font-size:12.5px">이 달의 요일 전부 넣기/빼기</span>
       </div>
       <div class="dowrow" id="dowRow">
+        <button type="button" id="calDow0" data-dow="0" class="sun">일</button>
         <button type="button" id="calDow1" data-dow="1">월</button>
         <button type="button" id="calDow2" data-dow="2">화</button>
         <button type="button" id="calDow3" data-dow="3">수</button>
         <button type="button" id="calDow4" data-dow="4">목</button>
         <button type="button" id="calDow5" data-dow="5">금</button>
         <button type="button" id="calDow6" data-dow="6" class="sat">토</button>
-        <button type="button" id="calDow0" data-dow="0" class="sun">일</button>
       </div>
       <div class="row tight" style="margin-top:6px;justify-content:flex-end">
         <button class="btn ghost sm" id="calToday">오늘로 이동</button>
@@ -909,7 +907,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20r";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20s";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -989,7 +987,9 @@ const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const DOW = ["일","월","화","수","목","금","토"];
 
-function dObj(d){ const [y,m,dd] = d.split("-").map(Number); return new Date(y, m-1, dd); }
+/** 날짜 키 → 날짜. 다른 시간표 키 "tx~2026-10-04" 도 날짜 부분만 본다 */
+function dateOf(k){ k = String(k); const i = k.indexOf("~"); return i < 0 ? k : k.slice(i + 1); }
+function dObj(d){ const [y,m,dd] = dateOf(d).split("-").map(Number); return new Date(y, m-1, dd); }
 function iso(o){ return o.getFullYear() + "-" + String(o.getMonth()+1).padStart(2,"0") + "-" + String(o.getDate()).padStart(2,"0"); }
 function fmtD(d){ const o = dObj(d); return (o.getMonth()+1) + "/" + o.getDate(); }
 function fmtDow(d){ return DOW[dObj(d).getDay()]; }
@@ -1031,7 +1031,7 @@ function winLabel(d){ const [a, b] = winOf(d); return a + "–" + b + "시"; }
 
 /* ═══ 여러 시간표 (2026-09-20 Benny: "시간표1, 이름 변경, 시간표 추가") ═══
    설정 key `tables` = [{id,name,dates}]. 응답은 **날짜 단위라 시간표끼리 공유**한다
-   (같은 날이면 어느 시간표에서 입력해도 같은 값). cfg().dates 는 모든 시간표 날짜의 합집합.
+   (v14 부터 시간표마다 따로 — tKey()). cfg().dates 는 모든 시간표 날짜의 합집합.
    화면(표·결과·달력)은 지금 고른 시간표의 날짜 tDates() 만 쓴다. */
 let curT = "";
 function tablesOf(){
@@ -1049,7 +1049,12 @@ function curTable(){
   const ts = tablesOf();
   return ts.find(t => t.id === curT) || ts[0];
 }
-function tDates(){ return curTable().dates.slice().sort(); }
+/* 응답 키: 첫 시간표는 날짜 그대로, 다른 시간표는 "<id>~날짜" → 시간표끼리 응답이 섞이지 않는다 (v14, 2026-09-20 Benny) */
+function tKey(t, d){ return t.id === tablesOf()[0].id ? d : t.id + "~" + d; }
+function tKeys(t){ return t.dates.slice().sort().map(d => tKey(t, d)); }
+function tDates(){ return tKeys(curTable()); }                       // 화면에 쓰는 키
+function tPlain(){ return curTable().dates.slice().sort(); }         // 달력(dsel)에 쓰는 날짜
+function allKeys(){ const o = []; tablesOf().forEach(t => o.push(...tKeys(t))); return o; }
 function unionDates(){
   const u = new Set(); tablesOf().forEach(t => t.dates.forEach(d => u.add(d)));
   return Array.from(u).sort();
@@ -1140,7 +1145,7 @@ function pickBand(id, quiet){
   const saved = localStorage.getItem("bm_name:" + B) || "";
   if (!same || !members().includes(me)) me = members().includes(saved) ? saved : "";
   if (!same){ thresh = null; pick = null; focusName = null; curT = ""; openT = null; }
-  if (!same || !dateDirty){ dsel = new Set(tDates()); dateDirty = false; }
+  if (!same || !dateDirty){ dsel = new Set(tPlain()); dateDirty = false; }
   loadMine(!same);
   applyConfig();
   renderAll();
@@ -1165,12 +1170,39 @@ function loadMine(force){
   sel = new Set(); noteDraft = {}; noneSel = new Set();
   if (!me) return;
   const mine = hoursOf()[me] || {};
-  for (const d of cfg().dates){
+  for (const d of allKeys()){
     (mine[d] || []).forEach(h => sel.add(key(d,h)));
     if (Array.isArray(mine[d]) && !mine[d].length) noneSel.add(d);
   }
   const mn = (notesOf()[me] || {});
-  for (const d of cfg().dates) if (mn[d]) noteDraft[d] = mn[d];
+  for (const d of allKeys()) if (mn[d]) noteDraft[d] = mn[d];
+  migrateShared(mine, mn);
+}
+
+/* v14 옮기기: 예전엔 시간표끼리 응답을 날짜로 공유했다. 두 번째 이후 시간표에 '내 것'이 하나도 없으면
+   예전 공유 값(날짜 키)을 그 시간표 키로 복사하고, 첫 시간표에 없는 날짜의 옛 줄은 지운다.
+   각자 자기 응답만 옮긴다(페이지를 열 때 한 번). */
+let migrateDrop = [];
+function migrateShared(mine, mn){
+  const first = tablesOf()[0], firstSet = new Set(first.dates), drop = new Set();
+  let moved = false;
+  tablesOf().slice(1).forEach(t => {
+    const pre = t.id + "~";
+    if (Object.keys(mine).some(k => k.startsWith(pre)) || Object.keys(mn).some(k => k.startsWith(pre))) return;
+    const flag = "bm_mig:" + B + ":" + me + ":" + t.id;
+    try { if (localStorage.getItem(flag)) return; localStorage.setItem(flag, "1"); } catch(e){}
+    t.dates.forEach(d => {
+      const k = pre + d;
+      if (Array.isArray(mine[d])){
+        mine[d].forEach(h => { if (hoursFor(k).includes(h)) sel.add(key(k, h)); });
+        if (!mine[d].length) noneSel.add(k);
+        moved = true;
+      }
+      if (mn[d]){ noteDraft[k] = mn[d]; moved = true; }
+      if ((Array.isArray(mine[d]) || mn[d]) && !firstSet.has(d)) drop.add(d);
+    });
+  });
+  if (moved){ migrateDrop = Array.from(drop); setTimeout(() => { if (!saving) touch(); }, 0); }
 }
 
 function answered(name){
@@ -1344,7 +1376,7 @@ function renderSheet(){
   drawSheet($("#sheet"), tDates(), $("#sheetHint"), null);
   $$("#tList .tcol.open").forEach(c => {
     const x = tablesOf().find(y => y.id === c.dataset.t); if (!x) return;
-    drawSheet(c.querySelector("table.sheet"), x.dates.slice().sort(), c.querySelector(".cardhead p"), x.id);
+    drawSheet(c.querySelector("table.sheet"), tKeys(x), c.querySelector(".cardhead p"), x.id);
   });
 }
 function drawSheet(t, ds, hint, tid){
@@ -1352,8 +1384,8 @@ function drawSheet(t, ds, hint, tid){
   const main = !tid, H = hoursOf(), N = notesOf();
   if (!ds.length || !members().length) return;
 
-  const rs = members().filter(n => ds.some(d => Array.isArray((H[n] || {})[d])));
-  if (hint) hint.textContent = rs.length + " / " + members().length + "명 응답";
+  const tt = tid ? tablesOf().find(y => y.id === tid) : curTable();
+  if (hint && tt) hint.textContent = tSummary(tt);
 
   const thead = document.createElement("thead"), hr = document.createElement("tr");
   const c0 = document.createElement("th"); c0.className = "nm corner"; c0.textContent = "이름";
@@ -1665,7 +1697,8 @@ async function save(){
   saving = true;
   setStatus("저장 중…");
   const payload = { hours:{}, notes:{} };
-  cfg().dates.forEach(d => {
+  migrateDrop.forEach(d => { payload.hours[d] = null; payload.notes[d] = ""; });   // 옮기고 남은 옛 줄 지우기
+  allKeys().forEach(d => {
     const hs = hoursFor(d).filter(h => sel.has(key(d,h)));
     /* 시간 있음 → [..] / 전부 불가 → [] / 안 정함 → null (서버가 그 줄을 지운다, v12~) */
     payload.hours[d] = hs.length ? hs : (noneSel.has(d) ? [] : null);
@@ -1687,6 +1720,7 @@ async function save(){
 
   try {
     ST = await api({ action:"save", band:B, name:me, payload: JSON.stringify(payload) });
+    migrateDrop = [];
     setStatus("저장됨 ✓ — " + me, "ok");
     renderMembers(); renderResult();
   } catch(e){
@@ -2576,7 +2610,7 @@ function calShift_(n){
   renderCal();
 }
 
-function syncDsel(){ if (!dateDirty) dsel = new Set(tDates()); }
+function syncDsel(){ if (!dateDirty) dsel = new Set(tPlain()); }
 
 /** 지금 고른 날짜를 ST 에 그대로 반영한다. 여러 번 돌려도 결과가 같다(멱등). */
 function applyDates(){
@@ -2664,15 +2698,16 @@ function renderWinList(){
     const lab = document.createElement("span");
     lab.className = "wd" + (dObj(d).getDay() === 0 ? " sun" : "");
     lab.textContent = fmtFull(d);
-    if (W[d]){ const c = document.createElement("span"); c.className = "cus"; c.textContent = " 따로"; lab.appendChild(c); }
-    const [a, b] = winOf(d);
+    const k = tKey(curTable(), d);
+    if (W[k]){ const c = document.createElement("span"); c.className = "cus"; c.textContent = " 따로"; lab.appendChild(c); }
+    const [a, b] = winOf(k);
     const s1 = mkHourSel(0, 23, a), s2 = mkHourSel(1, 24, b);
     const tilde = document.createElement("span"); tilde.className = "u"; tilde.textContent = "시 ~";
     const u2 = document.createElement("span"); u2.className = "u"; u2.textContent = "시";
     const onChange = () => {
       let na = +s1.value, nb = +s2.value;
       if (nb <= na){ nb = Math.min(24, na + 1); s2.value = String(nb); }
-      setWindow(d, na, nb);
+      setWindow(k, na, nb);
     };
     s1.onchange = onChange; s2.onchange = onChange;
     li.append(lab, s1, tilde, s2, u2);
@@ -2863,7 +2898,7 @@ function absorb(){
   if (!ST.bands.some(b => b.id === B)) B = ST.bands[0].id;
   if (!members().includes(me)) me = localStorage.getItem("bm_name:" + B) || "";
   if (!members().includes(me)) me = "";
-  if (!dateDirty) dsel = new Set(tDates());
+  if (!dateDirty) dsel = new Set(tPlain());
   applyConfig(); loadMine(); renderAll();
 }
 
@@ -3126,13 +3161,16 @@ $("#dmDrop").onclick = () => {
   const d = dmDate; if (!d) return;
   if (!confirm(fmtFull(d) + " 을 이 시간표에서 뺄까요?")) return;
   closeDay();
-  dsel.delete(d); renderCal(); dateChanged();
+  dsel.delete(dateOf(d)); renderCal(); dateChanged();
 };
 
 /* ═══════════════ 시간표 ═══════════════ */
+/** 카드 머리 한 줄: "9/20(일) ~ 1/10(일) · 2 / 6명 응답" (열려 있든 닫혀 있든 같게) */
 function tSummary(t){
-  const ds = t.dates.slice().sort();
-  return ds.length ? fmtFull(ds[0]) + (ds.length > 1 ? " ~ " + fmtFull(ds[ds.length-1]) : "") + " · " + ds.length + "일" : "날짜 없음";
+  const ds = t.dates.slice().sort(), ks = tKeys(t), H = hoursOf();
+  const range = ds.length ? fmtFull(ds[0]) + (ds.length > 1 ? " ~ " + fmtFull(ds[ds.length-1]) : "") : "날짜 없음";
+  const n = members().filter(m => ks.some(k => Array.isArray((H[m] || {})[k]))).length;
+  return range + " · " + n + " / " + members().length + "명 응답";
 }
 /* 첫 시간표는 늘 있고 기본으로 펼쳐져 있다. 나머지는 접힌 카드.
    각 카드는 따로 열고 닫는다 (2026-09-20 Benny: "두 번째를 여는데 왜 첫 번째가 닫혀?").
@@ -3151,7 +3189,7 @@ function renderTables(){
   $("#sheetBody").hidden = !mainOpen;
   $("#sheetFold").textContent = mainOpen ? "▲" : "▼";
   $("#sheetFold").setAttribute("aria-expanded", String(mainOpen));
-  if (!mainOpen) $("#sheetHint").textContent = tSummary(t);
+  $("#sheetHint").textContent = tSummary(t);
   $$("#tList .tcol").forEach(x => x.remove());
   ts.forEach(x => {
     if (x.id === t.id){ list.appendChild(card); return; }
@@ -3189,13 +3227,13 @@ function focusTable(id){
   if (curT === id && curTable().id === id) return;
   if (dateDirty){ saveDates(); pendDone(datePend); datePend = 0; }
   curT = id; isOpenT(id); openT.add(id);
-  dsel = new Set(tDates()); dateDirty = false;
+  dsel = new Set(tPlain()); dateDirty = false;
   renderAll();
 }
 function switchTable(id){
   if (dateDirty){ saveDates(); pendDone(datePend); datePend = 0; }   // 고르던 날짜는 원래 시간표에 먼저 저장
   curT = id;
-  dsel = new Set(tDates()); dateDirty = false;
+  dsel = new Set(tPlain()); dateDirty = false;
   renderAll();
   $("#sheetCard").scrollIntoView({ behavior:"smooth", block:"start" });
 }
@@ -3216,10 +3254,7 @@ function addTable(){
   openModal("calModal");                            // 바로 날짜 고르기
 }
 $("#tAdd").onclick = addTable;
-$("#sheetTitle").onclick = () => {
-  const t = curTable(), v = (prompt("시간표 이름", t.name) || "").trim();
-  if (v && v !== t.name) saveTables("이름 바꿈", ts => { const x = ts.find(y => y.id === t.id); if (x) x.name = v; });
-};
+/* 이름은 '시간표 수정' 창에서만 바꾼다 (2026-09-20 Benny: 일관성) */
 $("#tName").addEventListener("change", () => {
   const t = curTable(), v = $("#tName").value.trim();
   if (v && v !== t.name) saveTables("이름 바꿈", ts => { const x = ts.find(y => y.id === t.id); if (x) x.name = v; });
@@ -3231,7 +3266,7 @@ $("#tDelete").onclick = () => {
   closeModal("calModal");
   saveTables(t.name + " 삭제됨", ts => { const i = ts.findIndex(y => y.id === t.id); if (i >= 0 && ts.length > 1) ts.splice(i, 1); });
   curT = "";
-  dsel = new Set(tDates()); dateDirty = false;
+  dsel = new Set(tPlain()); dateDirty = false;
   renderAll();
 };
 
