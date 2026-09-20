@@ -201,7 +201,7 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .sheettools .btn{flex:1 1 auto}
 .tbar-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 22px 6px 22px;margin:0 -16px;touch-action:pan-x}
 .tbar{display:flex;gap:3px;width:max-content}
-.tbar .tb{position:relative;appearance:none;border:0;width:52px;height:48px;border-radius:4px;background:var(--soft);
+.tbar .tb{position:relative;appearance:none;display:flex;align-items:center;justify-content:center;border:0;width:52px;height:48px;border-radius:4px;background:var(--soft);
   cursor:pointer;touch-action:pan-x;font:inherit;font-weight:700;color:transparent;padding:0}
 .tbar .tb[aria-pressed="true"]{background:var(--accent)}
 .tbar .tb.x{background:rgba(180,71,47,.12);color:var(--warn);font-size:18px}
@@ -211,6 +211,8 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
   font-size:11.5px;font-weight:500;color:var(--muted)}
 .tbar .tb::before,.tbar .tb.last::after{border-left:0}
 .dm-state{font-weight:700;font-size:15px}
+.tbar.ro .tb{cursor:default}
+.dm-vmemo{margin:4px 0 0;font-size:14px}
 .dm-state.ok{color:var(--accent)} .dm-state.no{color:var(--warn)} .dm-state.u{color:var(--muted)}
 .seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .seg4 button{appearance:none;font:inherit;font-size:13.5px;font-weight:600;min-height:44px;border-radius:11px;
@@ -499,11 +501,10 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </div>
       <div class="sheettools">
         <button class="btn sm primary" id="heatOpenBtn" type="button">결과 보기</button>
-        <button class="btn sm" id="gridOpenBtn" type="button">✎ 한꺼번에 입력</button>
         <button class="btn sm" id="dateEdit" type="button">날짜 고르기</button>
       </div>
       <p class="hint" style="margin:6px 0 0">
-        <b>내 줄</b> 칸을 누르면 그 날 시간을 고르고, 다른 칸은 그 날 사정을 봅니다.
+        <b>내 줄</b> 칸을 누르면 그 날 시간을 고르고, 다른 사람 칸은 그 사람 사정을 봅니다.
         이름을 누르면 멤버를 고치고, 날짜를 누르면 그 날 시간대를 바꿔요.
       </p>
       <div class="grid-wrap" style="margin-top:12px"><table class="sheet" id="sheet"></table></div>
@@ -576,6 +577,13 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn ghost" id="dmClose" type="button">닫기</button>
       </div>
       <p class="dm-sum" id="dmSum"></p>
+      <!-- 다른 사람 칸을 눌렀을 때: 그 사람 것만 읽기 전용으로 -->
+      <div id="dmView" hidden>
+        <div class="dm-state" id="dmViewState"></div>
+        <div class="tbar-wrap"><div class="tbar ro" id="dmViewBar"></div></div>
+        <p class="dm-vmemo" id="dmViewMemo" hidden></p>
+        <button class="btn ghost sm" id="dmMineBtn" type="button" style="padding-left:0;margin:6px 0 10px">내 일정 입력하기 →</button>
+      </div>
       <div id="dmMine">
         <div class="spread" style="margin-bottom:4px">
           <span class="dm-state" id="dmState">미정</span>
@@ -863,7 +871,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20l";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20m";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1252,12 +1260,11 @@ function renderMembers(){
   $("#whoKeep").hidden = !me;
   if (me) $("#whoName").textContent = me;
   $("#sheetCard").hidden  = !cfg().dates.length || !members().length;
-  $("#gridOpenBtn").hidden = !has;
   $("#saveBtn").hidden    = !(view === "answer" && has);
   renderSheet();
 }
 
-$("#gridOpenBtn").onclick = () => { renderGrid(); openModal("gridModal"); };
+/* 2026-09-20 Benny: "한꺼번에 입력 없어도 되지 않을까" → 버튼 제거. 격자 코드는 남겨둠(다시 쓸 수 있게) */
 $("#gridDone").onclick    = () => { closeModal("gridModal"); if (dirty && !saving) save(); };
 /* 바꾸기 = 이름 목록만 펼친다. 지금 이름은 그대로(초록), 같은 이름이나 '그대로' 누르면 다시 접힘 */
 $("#whoChange").onclick = () => { whoOpen = true; renderMembers(); };
@@ -1321,7 +1328,7 @@ function renderSheet(){
       b.appendChild(sp);
       if (memo){ const m = document.createElement("span"); m.className = "mm"; m.textContent = memo; b.appendChild(m); }
       b.title = n + " · " + fmtFull(d);
-      b.onclick = () => openDay(d);
+      b.onclick = () => openDay(d, n);                    // 그 사람 칸 → 그 사람 것
       td.appendChild(b); tr.appendChild(td);
     });
     tr.appendChild(document.createElement("td")).className = "addcol";
@@ -1493,11 +1500,37 @@ $("#dmNo").onclick = () => {
   renderDmHours(); paintGrid(); renderSheet(); touch();
 };
 
-function openDay(d){
+/** 읽기 전용 시간 바 (다른 사람 것) */
+function roBar(box, d, hrs){
+  box.innerHTML = "";
+  const hs = hoursFor(d), no = Array.isArray(hrs) && !hrs.length;
+  hs.forEach((h, i) => {
+    const b = document.createElement("div");
+    b.className = "tb" + (no ? " x" : "") + (i === hs.length - 1 ? " last" : "");
+    b.dataset.l = hh(h); b.dataset.e = hh(h + 1);
+    b.textContent = no ? "✗" : "";
+    b.setAttribute("aria-pressed", String(!!hrs && hrs.includes(h)));
+    box.appendChild(b);
+  });
+}
+function openDay(d, who){
   dmDate = d;
-  $("#dmTitle").textContent = fmtFull(d) + " · " + winLabel(d);
+  const view = (who && who !== me) ? who : null;        // 남의 칸을 누르면 그 사람 것을 보여준다
+  $("#dmTitle").textContent = (view ? view + " · " : "") + fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
-  $("#dmMine").hidden = !me;
+  $("#dmMine").hidden = !me || !!view;
+  $("#dmView").hidden = !view;
+  if (view){
+    const hrs = (hoursOf()[view] || {})[d], memo = (notesOf()[view] || {})[d];
+    const st = $("#dmViewState");
+    if (Array.isArray(hrs) && hrs.length){ st.textContent = runsOf(hrs) + " 가능"; st.className = "dm-state ok"; }
+    else if (Array.isArray(hrs)){ st.textContent = "이 날 불가"; st.className = "dm-state no"; }
+    else { st.textContent = "아직 안 정함"; st.className = "dm-state u"; }
+    roBar($("#dmViewBar"), d, hrs);
+    $("#dmViewMemo").hidden = !memo;
+    $("#dmViewMemo").textContent = memo ? "“" + memo + "”" : "";
+    $("#dmMineBtn").hidden = !me;
+  }
   $("#dmSet").open = false;
   renderDmAdmin(d);
   renderDmHours();
@@ -1512,7 +1545,7 @@ function openDay(d){
 
   const box = $("#dmOthers"); box.innerHTML = "";
   /* 사유 적은 사람 → 시간 되는 사람 → 나머지 순 */
-  others.slice().sort((a, b) => (!!(N[b]||{})[d]) - (!!(N[a]||{})[d])
+  others.filter(n => n !== view).sort((a, b) => (!!(N[b]||{})[d]) - (!!(N[a]||{})[d])
                               || ((H[b]||{})[d]||[]).length - ((H[a]||{})[d]||[]).length)
     .forEach(n => {
       const hrs = (H[n] || {})[d], memo = (N[n] || {})[d];
@@ -1531,6 +1564,7 @@ function openDay(d){
 }
 function closeDay(){ $("#dayModal").hidden = true; dmDate = null; }
 $("#dmClose").onclick = closeDay;
+$("#dmMineBtn").onclick = () => { const d = dmDate; if (d) openDay(d); };
 $("#dayModal").addEventListener("click", e => { if (e.target.id === "dayModal") closeDay(); });
 $("#dmInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#dmSave").click(); });
 $("#dmSave").onclick = () => {
