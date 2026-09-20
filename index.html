@@ -224,6 +224,11 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
   font-size:11.5px;font-weight:500;color:var(--muted)}
 .tbar .tb::before,.tbar .tb.last::after{border-left:0}
 .dm-state{font-weight:700;font-size:15px}
+.hpeople .wholine{display:flex;flex-wrap:wrap;gap:4px 6px;margin:2px 0 8px}
+.hpeople .absline{margin:2px 0}
+.whob{appearance:none;border:0;background:var(--soft);border-radius:8px;padding:6px 10px;font:inherit;font-size:13.5px;
+  font-weight:600;color:var(--ink);cursor:pointer;min-height:34px}
+.hpeople .why{color:var(--muted)}
 .tbar.ro .tb{cursor:default}
 .dm-vmemo{margin:4px 0 0;font-size:14px}
 .dm-state.ok{color:var(--accent)} .dm-state.no{color:var(--warn)} .dm-state.u{color:var(--muted)}
@@ -470,9 +475,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
   </section>
 
   <div class="tabs" role="tablist" id="tabbar">
-    <button role="tab" id="tab-answer" aria-selected="true">일정</button>
-    <button role="tab" id="tab-song"   aria-selected="false">곡</button>
-    <button role="tab" id="tab-hist"   aria-selected="false">이력</button>
+    <button role="tab" id="tab-answer" aria-selected="true">캘린더</button>
+    <button role="tab" id="tab-song"   aria-selected="false">합주곡</button>
+    <button role="tab" id="tab-hist"   aria-selected="false">일정</button>
   </div>
 
   <!-- 나는 누구 — 모든 탭 같은 자리 (2026-09-20 Benny: "통일하자") -->
@@ -723,8 +728,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
             <select id="h_status"><option>예정</option><option>완료</option><option>취소</option></select>
           </label>
         </div>
-        <div><span style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">불참</span>
-          <div class="chips" id="h_absent"></div></div>
+        <div><span style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">불참 — 누르면 이유 칸이 생겨요 (캘린더 메모로 미리 채움)</span>
+          <div class="chips" id="h_absent"></div>
+          <div id="h_absWhy"></div></div>
         <div>
           <div class="spread" style="margin-bottom:5px">
             <span style="font-size:12px;color:var(--muted)">합주한 곡</span>
@@ -907,7 +913,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20s";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20t";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1617,9 +1623,9 @@ function roBar(box, d, hrs){
     box.appendChild(b);
   });
 }
-function openDay(d, who){
+function openDay(d, who, mode){
   dmDate = d;
-  const view = (who && who !== me) ? who : null;        // 남의 칸을 누르면 그 사람 것을 보여준다
+  const view = (who && (who !== me || mode === "view")) ? who : null;   // 남의 칸(또는 일정 탭의 이름) → 그 사람 것을 읽기 전용으로
   $("#dmTitle").textContent = (view ? view + " · " : "") + fmtFull(d) + " · " + winLabel(d);
   $("#dmInput").value = noteDraft[d] || "";
   $("#dmMine").hidden = !me || !!view;
@@ -2446,6 +2452,12 @@ function renderHist(){
 }
 const histAutoOpen = new Set();
 
+/** 일정 탭에서 이름을 누르면: 캘린더에서 그 사람이 그 날 넣은 것 */
+function showHistPerson(d, n){
+  const k = keyForDate(d);
+  if (!k){ setStatus(fmtFull(d) + " 은 캘린더 시간표에 없는 날이에요", "err"); return; }
+  openDay(k, n, "view");
+}
 function histCard(h, fresh, today){
   const el = document.createElement("div"); el.className = "item" + (today && h.date < today ? " past" : "");
 
@@ -2487,17 +2499,38 @@ function histCard(h, fresh, today){
     det.appendChild(sb);
   }
 
-  if (h.absent.length || h.memo){
+  /* 참석 / 불참 (이유) — 이름을 누르면 캘린더에 그 사람이 넣은 그 날 가능 시간·메모 (2026-09-20 Benny) */
+  const abs = h.absent.map(parseAbs), absSet = new Set(abs.map(a => a.name));
+  const who = n => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "whob"; b.textContent = n;
+    b.onclick = e => { e.stopPropagation(); showHistPerson(h.date, n); };
+    return b;
+  };
+  const att = members().filter(n => !absSet.has(n));
+  if (members().length || abs.length){
+    const bd = document.createElement("div"); bd.className = "body hpeople";
+    if (att.length && h.status !== "취소"){
+      const k = document.createElement("span"); k.className = "k"; k.textContent = "참석";
+      const line = document.createElement("div"); line.className = "wholine";
+      att.forEach(n => line.appendChild(who(n)));
+      bd.append(k, line);
+    }
+    if (abs.length){
+      const k = document.createElement("span"); k.className = "k"; k.textContent = "불참 (이유)";
+      bd.appendChild(k);
+      abs.forEach(a => {
+        const line = document.createElement("div"); line.className = "absline";
+        const why = document.createElement("span"); why.className = "why"; why.textContent = " (" + a.why + ")";
+        line.append(who(a.name), why);
+        bd.appendChild(line);
+      });
+    }
+    det.appendChild(bd);
+  }
+  if (h.memo){
     const bd = document.createElement("div"); bd.className = "body";
-    if (h.absent.length){
-      const k = document.createElement("span"); k.className = "k"; k.textContent = "불참";
-      bd.appendChild(k); bd.appendChild(document.createTextNode(h.absent.join(", ")));
-    }
-    if (h.memo){
-      if (h.absent.length) bd.appendChild(document.createElement("br"));
-      const k2 = document.createElement("span"); k2.className = "k"; k2.textContent = "메모";
-      bd.appendChild(k2); bd.appendChild(document.createTextNode(h.memo));
-    }
+    const k2 = document.createElement("span"); k2.className = "k"; k2.textContent = "메모";
+    bd.appendChild(k2); bd.appendChild(document.createTextNode(h.memo));
     det.appendChild(bd);
   }
 
@@ -2510,7 +2543,13 @@ function histCard(h, fresh, today){
   return el;
 }
 
-let histEditing = null, hAbsent = new Set(), hSongs = new Set();
+let histEditing = null, hAbsent = new Map(), hSongs = new Set();   // hAbsent: 이름 → 이유
+/** 불참 칸 저장 형식 "이름(이유)" — 서버는 쉼표로 나누므로 이유의 쉼표는 · 로 */
+function parseAbs(x){ const m = String(x).match(/^(.+?)\s*\((.*)\)\s*$/); return m ? { name:m[1].trim(), why:m[2].trim() } : { name:String(x).trim(), why:"" }; }
+function fmtAbs(n, why){ why = String(why || "").replace(/[,\n()]/g, " ").replace(/\s+/g, " ").trim(); return why ? n + "(" + why + ")" : n; }
+/** 이 날짜가 들어 있는 시간표의 키 (없으면 null) */
+function keyForDate(d){ const t = tablesOf().find(x => x.dates.includes(d)); return t ? tKey(t, d) : null; }
+function calMemo(n, d){ const k = keyForDate(d); return k ? ((notesOf()[n] || {})[k] || "") : ""; }
 
 function openHistForm(h){
   histEditing = h || null;
@@ -2522,7 +2561,7 @@ function openHistForm(h){
   $("#h_room").value   = h ? h.room  : (lastRoom() || "");
   $("#h_status").value = h ? h.status : "완료";
   $("#h_memo").value   = h ? h.memo  : "";
-  hAbsent = new Set(h ? h.absent : []);
+  hAbsent = new Map((h ? h.absent : []).map(x => { const a = parseAbs(x); return [a.name, a.why]; }));
   hSongs  = new Set(h ? h.songs  : []);
   renderHistPickers();
   $("#histDelete").hidden = !h;
@@ -2544,8 +2583,20 @@ function renderHistPickers(){
     const b = document.createElement("button");
     b.className = "chip sm"; b.type = "button"; b.textContent = n;
     b.setAttribute("aria-pressed", String(hAbsent.has(n)));
-    b.onclick = () => { hAbsent.has(n) ? hAbsent.delete(n) : hAbsent.add(n); renderHistPickers(); };
+    b.onclick = () => {
+      if (hAbsent.has(n)) hAbsent.delete(n);
+      else hAbsent.set(n, calMemo(n, $("#h_date").value));
+      renderHistPickers();
+    };
     ab.appendChild(b);
+  });
+  const wb = $("#h_absWhy"); wb.innerHTML = "";
+  hAbsent.forEach((why, n) => {
+    const r = document.createElement("div"); r.className = "sessrow";
+    const nm = document.createElement("span"); nm.className = "sn"; nm.textContent = n;
+    const inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "이유 (선택)"; inp.value = why;
+    inp.oninput = () => hAbsent.set(n, inp.value);
+    r.append(nm, inp); wb.appendChild(r);
   });
   const sp = $("#h_songs"); sp.innerHTML = "";
   const cand = songsOf().filter(s => s.status === "연습중" || s.status === "완료" || s.status === "보류" || hSongs.has(s.id));
@@ -2575,7 +2626,7 @@ $("#histSave").onclick = async () => {
     date: $("#h_date").value, from: $("#h_from").value, to: $("#h_to").value,
     place: $("#h_place").value.trim(), room: $("#h_room").value.trim(),
     status: $("#h_status").value, memo: $("#h_memo").value.trim(),
-    absent: Array.from(hAbsent), songs: Array.from(hSongs)
+    absent: Array.from(hAbsent).map(([n, w]) => fmtAbs(n, w)), songs: Array.from(hSongs)
   };
   if (!p.date){ setStatus("날짜를 골라주세요", "err"); return; }
   closeHistForm();
