@@ -199,9 +199,12 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
 #sheetTitle{cursor:pointer}
 #sheetTitle::after{content:" ✎";font-size:13px;font-weight:500;color:var(--muted)}
+.foldbtn{appearance:none;border:0;background:transparent;color:var(--muted);font-size:14px;min-width:44px;min-height:44px;
+  margin:-8px -8px 0 0;cursor:pointer;flex:0 0 auto}
 .tcol{padding:0}
+.tcol .tbody{padding:0 16px 16px}
 .tcol .cardhead{padding:14px 16px}
-.tcol h2{margin:0;font-size:16px}
+.tcol h2{margin:0}
 .tadd-card{padding:8px}
 .dowrow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:6px}
 .dowrow button{appearance:none;font:inherit;font-weight:700;font-size:14px;min-height:44px;border-radius:10px;
@@ -512,7 +515,9 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
           <h2 style="margin:0" id="sheetTitle">시간표1</h2>
           <span class="hint" style="margin:0" id="sheetHint"></span>
         </div>
+        <button class="foldbtn" id="sheetFold" type="button" aria-label="접기/펼치기" aria-expanded="true">▲</button>
       </div>
+      <div id="sheetBody">
       <div class="sheettools">
         <button class="btn sm primary" id="heatOpenBtn" type="button">결과 보기</button>
         <button class="btn sm" id="dateEdit" type="button">시간표 수정</button>
@@ -523,6 +528,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         이름을 누르면 멤버를 고치고, 날짜를 누르면 그 날 시간대를 바꿔요.
       </p>
       <div class="grid-wrap" style="margin-top:12px"><table class="sheet" id="sheet"></table></div>
+      </div>
     </div>
     </div>
     <div class="card tadd-card" id="tAddCard"><button class="btn ghost tadd" id="tAdd" type="button">＋ 시간표 추가</button></div>
@@ -903,7 +909,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20q";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20r";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1133,7 +1139,7 @@ function pickBand(id, quiet){
   localStorage.setItem("bm_band", B);
   const saved = localStorage.getItem("bm_name:" + B) || "";
   if (!same || !members().includes(me)) me = members().includes(saved) ? saved : "";
-  if (!same){ thresh = null; pick = null; focusName = null; curT = ""; }
+  if (!same){ thresh = null; pick = null; focusName = null; curT = ""; openT = null; }
   if (!same || !dateDirty){ dsel = new Set(tDates()); dateDirty = false; }
   loadMine(!same);
   applyConfig();
@@ -1333,13 +1339,21 @@ function myHours(d){ return hoursFor(d).filter(h => sel.has(key(d,h))); }
 function myAnswered(d){ return myHours(d).length > 0 || noneSel.has(d); }
 
 /** 스프레드시트처럼: 줄 = 멤버(나 먼저), 칸 = 날짜, 내용 = 되는 시간 + 메모 */
+/** 펼친 시간표 전부 다시 그린다: 지금 시간표(#sheetCard) + 아래 펼친 다른 시간표들 */
 function renderSheet(){
-  const t = $("#sheet"); t.innerHTML = "";
-  const ds = tDates(), H = hoursOf(), N = notesOf();
+  drawSheet($("#sheet"), tDates(), $("#sheetHint"), null);
+  $$("#tList .tcol.open").forEach(c => {
+    const x = tablesOf().find(y => y.id === c.dataset.t); if (!x) return;
+    drawSheet(c.querySelector("table.sheet"), x.dates.slice().sort(), c.querySelector(".cardhead p"), x.id);
+  });
+}
+function drawSheet(t, ds, hint, tid){
+  t.innerHTML = "";
+  const main = !tid, H = hoursOf(), N = notesOf();
   if (!ds.length || !members().length) return;
 
-  const rs = responders();
-  $("#sheetHint").textContent = rs.length + " / " + members().length + "명 응답";
+  const rs = members().filter(n => ds.some(d => Array.isArray((H[n] || {})[d])));
+  if (hint) hint.textContent = rs.length + " / " + members().length + "명 응답";
 
   const thead = document.createElement("thead"), hr = document.createElement("tr");
   const c0 = document.createElement("th"); c0.className = "nm corner"; c0.textContent = "이름";
@@ -1356,8 +1370,8 @@ function renderSheet(){
     hr.appendChild(th);
   });
   const addD = document.createElement("th"); addD.className = "addcol";
-  const addDb = document.createElement("button"); addDb.type = "button"; addDb.id = "sheetAddDate";
-  addDb.textContent = "＋ 날짜"; addDb.onclick = () => openModal("calModal");
+  const addDb = document.createElement("button"); addDb.type = "button"; if (main) addDb.id = "sheetAddDate";
+  addDb.textContent = "＋ 날짜"; addDb.onclick = () => { if (tid) focusTable(tid); openModal("calModal"); };
   addD.appendChild(addDb); hr.appendChild(addD);
   thead.appendChild(hr); t.appendChild(thead);
 
@@ -1396,7 +1410,7 @@ function renderSheet(){
   /* 맨 아래: 멤버 추가 */
   const ar = document.createElement("tr"); ar.className = "addrow";
   const at = document.createElement("th"); at.className = "nm";
-  const ab = document.createElement("button"); ab.type = "button"; ab.className = "nmbtn add"; ab.id = "sheetAddMember";
+  const ab = document.createElement("button"); ab.type = "button"; ab.className = "nmbtn add"; if (main) ab.id = "sheetAddMember";
   ab.textContent = "＋ 멤버"; ab.onclick = addMemberPrompt;
   at.appendChild(ab); ar.appendChild(at);
   const filler = document.createElement("td"); filler.colSpan = ds.length + 1; ar.appendChild(filler);
@@ -1686,7 +1700,7 @@ async function save(){
 
 /* ═══════════════ 결과 ═══════════════ */
 function responders(){ return members().filter(answered); }
-function availAt(d, h){ return responders().filter(n => ((hoursOf()[n] || {})[d] || []).includes(h)); }
+function availAt(d, h){ const H = hoursOf(); return members().filter(n => ((H[n] || {})[d] || []).includes(h)); }   // 시간표와 무관
 
 /* 후보에서 뺀 날짜의 응답·메모는 시트에서 지워지지 않는다(서버는 보낸 날짜만 덮어쓴다).
    그래서 화면에서만 사라져 있었는데, 접힌 보관함으로 다시 꺼내 볼 수 있게 했다. */
@@ -3120,27 +3134,63 @@ function tSummary(t){
   const ds = t.dates.slice().sort();
   return ds.length ? fmtFull(ds[0]) + (ds.length > 1 ? " ~ " + fmtFull(ds[ds.length-1]) : "") + " · " + ds.length + "일" : "날짜 없음";
 }
-/* 첫 시간표는 늘 있고 기본으로 펼쳐져 있다. 나머지는 그 아래 접힌 카드 — 누르면 그걸 펼친다(한 번에 하나) */
+/* 첫 시간표는 늘 있고 기본으로 펼쳐져 있다. 나머지는 접힌 카드.
+   각 카드는 따로 열고 닫는다 (2026-09-20 Benny: "두 번째를 여는데 왜 첫 번째가 닫혀?").
+   '지금 시간표'(curT) = 결과 보기·시간표 수정·달력이 다루는 것. 그 카드만 #sheetCard 로 그린다. */
+let openT = null;
+function isOpenT(id){
+  if (!openT) openT = new Set([tablesOf()[0].id]);
+  return openT.has(id);
+}
+function toggleOpenT(id){ isOpenT(id); openT.has(id) ? openT.delete(id) : openT.add(id); renderTables(); renderSheet(); }
 function renderTables(){
   const ts = tablesOf(), t = curTable(), list = $("#tList"), card = $("#sheetCard");
   $("#sheetTitle").textContent = t.name;
   $("#tEmpty").hidden = !!t.dates.length;
+  const mainOpen = isOpenT(t.id);
+  $("#sheetBody").hidden = !mainOpen;
+  $("#sheetFold").textContent = mainOpen ? "▲" : "▼";
+  $("#sheetFold").setAttribute("aria-expanded", String(mainOpen));
+  if (!mainOpen) $("#sheetHint").textContent = tSummary(t);
   $$("#tList .tcol").forEach(x => x.remove());
   ts.forEach(x => {
     if (x.id === t.id){ list.appendChild(card); return; }
-    const c = document.createElement("div"); c.className = "card tcol"; c.dataset.t = x.id;
+    const open = isOpenT(x.id);
+    const c = document.createElement("div"); c.className = "card tcol" + (open ? " open" : ""); c.dataset.t = x.id;
     const h = document.createElement("button"); h.type = "button"; h.className = "cardhead";
-    h.innerHTML = '<div class="hgrow"><h2></h2><p class="hint" style="margin:2px 0 0"></p></div><span class="caret">▼</span>';
+    h.innerHTML = '<div class="hgrow"><h2></h2><p class="hint" style="margin:2px 0 0"></p></div><span class="caret"></span>';
     h.querySelector("h2").textContent = x.name;
     h.querySelector("p").textContent = tSummary(x);
-    h.onclick = () => switchTable(x.id);
-    c.appendChild(h); list.appendChild(c);
+    h.querySelector(".caret").textContent = open ? "▲" : "▼";
+    h.onclick = () => toggleOpenT(x.id);
+    c.appendChild(h);
+    if (open){
+      const b = document.createElement("div"); b.className = "tbody";
+      b.innerHTML = '<div class="sheettools"><button class="btn sm primary" type="button">결과 보기</button>' +
+                    '<button class="btn sm" type="button">시간표 수정</button></div>' +
+                    (x.dates.length ? '<div class="grid-wrap" style="margin-top:12px"><table class="sheet"></table></div>'
+                                    : '<p class="hint" style="margin:10px 0 0">아직 날짜가 없어요. <b>시간표 수정</b>에서 골라주세요.</p>');
+      const [rb, eb] = b.querySelectorAll(".sheettools button");
+      rb.onclick = () => { focusTable(x.id); openModal("heatModal"); };
+      eb.onclick = () => { focusTable(x.id); openModal("calModal"); };
+      c.appendChild(b);
+    }
+    list.appendChild(c);
   });
   const hide = card.hidden;
   $$("#tList .tcol").forEach(x => x.hidden = hide);
   $("#tAddCard").hidden = hide;
   $("#tDelete").hidden = ts.findIndex(x => x.id === t.id) === 0;     // 첫 시간표는 지울 수 없다
   if (document.activeElement !== $("#tName")) $("#tName").value = t.name;
+}
+$("#sheetFold").onclick = () => toggleOpenT(curTable().id);
+/** 결과·수정의 대상을 이 시간표로 (화면 위치는 그대로, 펼친 상태로) */
+function focusTable(id){
+  if (curT === id && curTable().id === id) return;
+  if (dateDirty){ saveDates(); pendDone(datePend); datePend = 0; }
+  curT = id; isOpenT(id); openT.add(id);
+  dsel = new Set(tDates()); dateDirty = false;
+  renderAll();
 }
 function switchTable(id){
   if (dateDirty){ saveDates(); pendDone(datePend); datePend = 0; }   // 고르던 날짜는 원래 시간표에 먼저 저장
@@ -3160,7 +3210,7 @@ function addTable(){
   if (!name) return;
   const id = "t" + Date.now().toString(36);
   saveTables(name + " 추가됨", ts => { if (!ts.some(x => x.id === id)) ts.push({ id, name, dates:[] }); });
-  curT = id;
+  curT = id; isOpenT(id); openT.add(id);
   dsel = new Set(); dateDirty = false;
   renderAll();
   openModal("calModal");                            // 바로 날짜 고르기
