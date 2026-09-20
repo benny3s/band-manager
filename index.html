@@ -199,9 +199,10 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .subh{font-size:14.5px;font-weight:700;margin:14px 0 2px;letter-spacing:-.02em}
 #sheetTitle{cursor:pointer}
 #sheetTitle::after{content:" ✎";font-size:13px;font-weight:500;color:var(--muted)}
-.ttabs{margin-top:10px;gap:6px}
-.ttabs .chip{min-height:38px;font-size:13px;padding:5px 12px}
-.ttabs .chip.add{border-style:dashed;color:var(--accent)}
+.tcol{padding:0}
+.tcol .cardhead{padding:14px 16px}
+.tcol h2{margin:0;font-size:16px}
+.btn.tadd{width:100%;border:1.5px dashed var(--line);background:var(--card);border-radius:14px;color:var(--accent);margin:0 0 12px;min-height:48px}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
 .tbar-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 22px 6px 22px;margin:0 -16px;touch-action:pan-x}
@@ -497,6 +498,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     </div>
 
     <!-- 스프레드시트처럼: 줄 = 멤버, 칸 = 날짜, 내용 = 되는 시간 -->
+    <!-- 시간표 목록: 펼친 것 하나(#sheetCard)는 제자리로 옮겨 끼우고, 나머지는 접힌 카드 -->
+    <div id="tList">
     <div class="card" id="sheetCard" hidden>
       <div class="spread">
         <div style="min-width:0">
@@ -504,8 +507,6 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
           <span class="hint" style="margin:0" id="sheetHint"></span>
         </div>
       </div>
-      <!-- 시간표가 여러 개면 여기서 고른다. ＋ 로 새 시간표 -->
-      <div class="chips ttabs" id="tChips"></div>
       <div class="sheettools">
         <button class="btn sm primary" id="heatOpenBtn" type="button">결과 보기</button>
         <button class="btn sm" id="dateEdit" type="button">시간표 수정</button>
@@ -517,6 +518,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       </p>
       <div class="grid-wrap" style="margin-top:12px"><table class="sheet" id="sheet"></table></div>
     </div>
+    </div>
+    <button class="btn ghost tadd" id="tAdd" type="button">＋ 시간표 추가</button>
 
     <!-- 후보에서 뺀 날짜의 응답·메모는 지워지지 않고 여기에 접혀서 남는다 -->
     <div class="card" id="archCard" hidden>
@@ -884,7 +887,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20n";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20o";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1022,7 +1025,6 @@ function ensureTables(){
 }
 function curTable(){
   const ts = tablesOf();
-  if (!curT) curT = localStorage.getItem("bm_table:" + B) || "";
   return ts.find(t => t.id === curT) || ts[0];
 }
 function tDates(){ return curTable().dates.slice().sort(); }
@@ -2995,7 +2997,7 @@ $("#calDow6").onclick  = () => toggleDow(6);
 function openModal(id){
   if (id === "calModal"){
     syncDsel(); renderCal(); renderDateChips();
-    $("#tName").value = curTable().name; $("#tDelete").hidden = tablesOf().length < 2;
+    $("#tName").value = curTable().name; $("#tDelete").hidden = tablesOf()[0].id === curTable().id;
   }
   if (id === "bandModal"){ renderAdmin(); $("#bandModalTitle").textContent = (curBand() || {}).name + " 설정"; }
   $("#" + id).hidden = false;
@@ -3091,28 +3093,38 @@ $("#dmDrop").onclick = () => {
 };
 
 /* ═══════════════ 시간표 ═══════════════ */
+function tSummary(t){
+  const ds = t.dates.slice().sort();
+  return ds.length ? fmtFull(ds[0]) + (ds.length > 1 ? " ~ " + fmtFull(ds[ds.length-1]) : "") + " · " + ds.length + "일" : "날짜 없음";
+}
+/* 첫 시간표는 늘 있고 기본으로 펼쳐져 있다. 나머지는 그 아래 접힌 카드 — 누르면 그걸 펼친다(한 번에 하나) */
 function renderTables(){
-  const ts = tablesOf(), t = curTable();
+  const ts = tablesOf(), t = curTable(), list = $("#tList"), card = $("#sheetCard");
   $("#sheetTitle").textContent = t.name;
   $("#tEmpty").hidden = !!t.dates.length;
-  const box = $("#tChips"); box.innerHTML = "";
-  if (ts.length > 1) ts.forEach(x => {
-    const b = document.createElement("button"); b.type = "button"; b.className = "chip";
-    b.textContent = x.name; b.setAttribute("aria-pressed", String(x.id === t.id));
-    b.onclick = () => switchTable(x.id);
-    box.appendChild(b);
+  $$("#tList .tcol").forEach(x => x.remove());
+  ts.forEach(x => {
+    if (x.id === t.id){ list.appendChild(card); return; }
+    const c = document.createElement("div"); c.className = "card tcol"; c.dataset.t = x.id;
+    const h = document.createElement("button"); h.type = "button"; h.className = "cardhead";
+    h.innerHTML = '<div class="hgrow"><h2></h2><p class="hint" style="margin:2px 0 0"></p></div><span class="caret">▼</span>';
+    h.querySelector("h2").textContent = x.name;
+    h.querySelector("p").textContent = tSummary(x);
+    h.onclick = () => switchTable(x.id);
+    c.appendChild(h); list.appendChild(c);
   });
-  const add = document.createElement("button"); add.type = "button"; add.className = "chip add"; add.id = "tAdd";
-  add.textContent = "＋ 시간표"; add.onclick = addTable;
-  box.appendChild(add);
-  $("#tDelete").hidden = ts.length < 2;
+  const hide = card.hidden;
+  $$("#tList .tcol").forEach(x => x.hidden = hide);
+  $("#tAdd").hidden = hide;
+  $("#tDelete").hidden = ts.findIndex(x => x.id === t.id) === 0;     // 첫 시간표는 지울 수 없다
   if (document.activeElement !== $("#tName")) $("#tName").value = t.name;
 }
 function switchTable(id){
   if (dateDirty){ saveDates(); pendDone(datePend); datePend = 0; }   // 고르던 날짜는 원래 시간표에 먼저 저장
-  curT = id; localStorage.setItem("bm_table:" + B, id);
+  curT = id;
   dsel = new Set(tDates()); dateDirty = false;
   renderAll();
+  $("#sheetCard").scrollIntoView({ behavior:"smooth", block:"start" });
 }
 /** 시간표 목록 저장 (이름·추가·삭제). 화면은 먼저 바뀐다 */
 function saveTables(msg, mutate){
@@ -3125,11 +3137,12 @@ function addTable(){
   if (!name) return;
   const id = "t" + Date.now().toString(36);
   saveTables(name + " 추가됨", ts => { if (!ts.some(x => x.id === id)) ts.push({ id, name, dates:[] }); });
-  curT = id; localStorage.setItem("bm_table:" + B, id);
+  curT = id;
   dsel = new Set(); dateDirty = false;
   renderAll();
   openModal("calModal");                            // 바로 날짜 고르기
 }
+$("#tAdd").onclick = addTable;
 $("#sheetTitle").onclick = () => {
   const t = curTable(), v = (prompt("시간표 이름", t.name) || "").trim();
   if (v && v !== t.name) saveTables("이름 바꿈", ts => { const x = ts.find(y => y.id === t.id); if (x) x.name = v; });
@@ -3140,11 +3153,11 @@ $("#tName").addEventListener("change", () => {
 });
 $("#tDelete").onclick = () => {
   const t = curTable();
-  if (tablesOf().length < 2) return;
+  if (tablesOf()[0].id === t.id) return;             // 첫 시간표는 늘 있다
   if (!confirm("'" + t.name + "' 시간표를 삭제할까요? (멤버들이 넣은 응답은 남습니다)")) return;
   closeModal("calModal");
   saveTables(t.name + " 삭제됨", ts => { const i = ts.findIndex(y => y.id === t.id); if (i >= 0 && ts.length > 1) ts.splice(i, 1); });
-  curT = ""; localStorage.removeItem("bm_table:" + B);
+  curT = "";
   dsel = new Set(tDates()); dateDirty = false;
   renderAll();
 };
