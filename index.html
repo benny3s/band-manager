@@ -202,7 +202,8 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 .tcol{padding:0}
 .tcol .cardhead{padding:14px 16px}
 .tcol h2{margin:0;font-size:16px}
-.btn.tadd{width:100%;border:1.5px dashed var(--line);background:var(--card);border-radius:14px;color:var(--accent);margin:0 0 12px;min-height:48px}
+.tadd-card{padding:8px}
+.btn.tadd{width:100%;border:1.5px dashed var(--line);background:transparent;border-radius:11px;color:var(--accent);margin:0;min-height:46px}
 .sheettools{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .sheettools .btn{flex:1 1 auto}
 .tbar-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:24px 22px 6px 22px;margin:0 -16px;touch-action:pan-x}
@@ -519,7 +520,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
       <div class="grid-wrap" style="margin-top:12px"><table class="sheet" id="sheet"></table></div>
     </div>
     </div>
-    <button class="btn ghost tadd" id="tAdd" type="button">＋ 시간표 추가</button>
+    <div class="card tadd-card" id="tAddCard"><button class="btn ghost tadd" id="tAdd" type="button">＋ 시간표 추가</button></div>
 
     <!-- 후보에서 뺀 날짜의 응답·메모는 지워지지 않고 여기에 접혀서 남는다 -->
     <div class="card" id="archCard" hidden>
@@ -887,7 +888,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20o";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20p";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1199,11 +1200,9 @@ function renderAll(){
   renderSongs();
   renderHist();
   renderAdmin();
-  const n = tDates().length;
   const bits = [];
   if (cfg().title) bits.push(cfg().title);
-  bits.push(n ? "후보 " + n + "일 · 멤버 " + members().length + "명"
-              : "날짜 후보가 아직 없습니다");
+  bits.push("멤버 " + members().length + "명");
   $("#subtitle").textContent = bits.join(" · ");
   $("#foot").textContent = "밴드매니저 " + BUILD + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
   show(view);
@@ -3115,7 +3114,7 @@ function renderTables(){
   });
   const hide = card.hidden;
   $$("#tList .tcol").forEach(x => x.hidden = hide);
-  $("#tAdd").hidden = hide;
+  $("#tAddCard").hidden = hide;
   $("#tDelete").hidden = ts.findIndex(x => x.id === t.id) === 0;     // 첫 시간표는 지울 수 없다
   if (document.activeElement !== $("#tName")) $("#tName").value = t.name;
 }
