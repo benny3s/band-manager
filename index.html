@@ -252,8 +252,8 @@ input[type=text],input[type=date],input[type=number],input[type=time],select,tex
   border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
 textarea{resize:vertical;min-height:62px;line-height:1.5}
 input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
-label.fld{display:block}
-label.fld>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+label.fld,div.fld{display:block}
+label.fld>span,div.fld>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
 
 /* 손가락으로 눌러도 옆·아래가 안 눌리게 — 모든 누를 수 있는 것은 최소 42px 높이.
    touch-action:manipulation 은 더블탭 확대 대기(300ms)를 없앤다. */
@@ -357,6 +357,16 @@ table.sum td.n b{color:var(--ink);font-weight:700}
 table.sum td.mid{color:var(--muted);font-size:12.5px;white-space:nowrap}
 table.sum td.go{color:var(--muted);text-align:right;font-size:15px;line-height:1.2;opacity:.55;padding-left:0}
 table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
+#whoCard{padding:10px 14px}
+#whoCard:has(#whoPick:not([hidden])){padding:14px 16px}
+.whobar{display:flex;align-items:center;gap:8px}
+.whobar .who-ic{color:var(--accent);font-size:10px}
+.whobar .who-tx{flex:1 1 auto;min-width:0;font-size:14.5px}
+.sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
+.sessrow .sn{flex:0 0 76px;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sessrow.me .sn{color:var(--accent)}
+.sessrow input{flex:1 1 auto;min-width:0}
+.rolechips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
 .histsec{font-size:12.5px;font-weight:700;color:var(--muted);margin:4px 2px 8px}
 .item.next{border:2px solid var(--accent);background:var(--soft)}
 .item.pastbox{margin-top:18px}
@@ -422,21 +432,22 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
     <button role="tab" id="tab-hist"   aria-selected="false">이력</button>
   </div>
 
+  <!-- 나는 누구 — 모든 탭 같은 자리 (2026-09-20 Benny: "통일하자") -->
+  <div class="card" id="whoCard">
+    <div id="whoPick">
+      <h2>누구세요?</h2>
+      <p class="hint">이름을 고르면 일정 응답·좋아요·세션에 그 이름으로 들어갑니다. ✓ 는 일정에 응답한 사람.</p>
+      <div class="chips" id="memberChips"></div>
+    </div>
+    <div class="whobar" id="whoDone" hidden>
+      <span class="who-ic" aria-hidden="true">●</span>
+      <div class="who-tx"><b id="whoName"></b> 님</div>
+      <button class="btn ghost sm" id="whoChange" type="button">바꾸기</button>
+    </div>
+  </div>
+
   <!-- ══════════ 일정 ══════════ -->
   <section id="view-answer">
-    <!-- 이름을 고르면 한 줄로 접힌다 -->
-    <div class="card" id="whoCard">
-      <div id="whoPick">
-        <h2>누구세요?</h2>
-        <p class="hint">이름을 누르면 내 응답을 불러옵니다. ✓ 는 이미 응답한 사람.</p>
-        <div class="chips" id="memberChips"></div>
-      </div>
-      <div class="spread" id="whoDone" hidden>
-        <div><b id="whoName"></b> <span class="hint" style="margin:0">님으로 응답 중</span></div>
-        <button class="btn ghost" id="whoChange" type="button">이름 바꾸기</button>
-      </div>
-    </div>
-
     <div class="card" id="bestCard">
       <h2>추천 시간</h2>
       <p class="hint">연속 2시간 이상 모두(또는 N명)가 되는 때. 예약은 여기서 고르면 됩니다.</p>
@@ -575,10 +586,8 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         <button class="btn primary sm" id="songNew" style="flex:0 0 auto">곡 추가</button>
       </div>
       <div id="voterBox" hidden style="margin-top:12px">
-        <p class="hint" style="margin:0 0 7px" id="voterHint">투표하려면 이름을 골라주세요.</p>
-        <div class="chips" id="voterChips"></div>
         <button class="btn ghost" id="resortBtn" type="button"
-                style="margin-top:8px;padding-left:0">↕ 좋아요 순으로 다시 정렬</button>
+                style="padding-left:0">↕ 좋아요 순으로 다시 정렬</button>
       </div>
     </div>
 
@@ -599,11 +608,17 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
             </select>
           </label>
         </div>
+        <div class="fld"><span>세션 — 이름 옆에 역할을 자유롭게. 비우면 빠져요</span>
+          <div id="f_sess"></div>
+          <div class="sessrow"><span class="sn">그 외</span>
+            <input type="text" id="f_sessExtra" placeholder="객원 등  예: 코러스: 친구"></div>
+          <datalist id="roleList"><option value="보컬"><option value="기타1"><option value="기타2"><option value="베이스"><option value="드럼"><option value="키보드"><option value="코러스"></datalist>
+        </div>
         <label class="fld"><span>링크 — 주소만 붙여넣으면 돼요. 앞에 이름을 쓰면 그 이름으로</span>
           <textarea id="f_links" placeholder="https://youtu.be/...&#10;라이브 https://youtu.be/..."></textarea>
           <span class="hint" id="f_linkPrev" style="margin:0"></span></label>
         <div class="row nowrap">
-          <label class="fld" style="flex:2 1 0"><span>세션 (파트: 이름, / 로 구분)</span><input type="text" id="f_parts" placeholder="보컬: 이경하 / 리드: 양관우 / 베이스: 박종찬 / 드럼: 나득균"></label>
+          <input type="hidden" id="f_parts">
           <label class="fld" style="flex:1 1 0"><span>튜닝</span><input type="text" id="f_tuning" placeholder="DROP D"></label>
         </div>
         <label class="fld"><span>메모</span><textarea id="f_memo"></textarea></label>
@@ -815,7 +830,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20e";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-20f";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1063,6 +1078,7 @@ function renderAll(){
   const locked = isLocked(), band = curBand();
   $("#view-lock").hidden = !locked;
   $("#tabbar").hidden = locked;
+  $("#whoCard").hidden = locked;
   if (locked){
     for (const k in VIEWS) $(VIEWS[k]).hidden = true;
     $("#saveBtn").hidden = true;
@@ -1172,7 +1188,7 @@ $("#titleBtn").onclick   = refresh;
 function renderMembers(){
   const box = $("#memberChips"); box.innerHTML = "";
   if (!members().length){
-    box.innerHTML = '<span class="empty" style="padding:6px">멤버가 없습니다. 관리 화면에서 추가하세요.</span>';
+    box.innerHTML = '<span class="empty" style="padding:6px">멤버가 없습니다. 밴드 메뉴 ⚙ 설정에서 추가하세요.</span>';
   }
   members().forEach(name => {
     const b = document.createElement("button");
@@ -1189,6 +1205,7 @@ function renderMembers(){
     box.appendChild(b);
   });
   const has = !!me && cfg().dates.length > 0;
+  $("#whoCard").hidden = isLocked() || !members().length;
   $("#whoPick").hidden = !!me;
   $("#whoDone").hidden = !me;
   if (me) $("#whoName").textContent = me;
@@ -1828,22 +1845,6 @@ function renderSongs(){
 
   // 이름 고르기는 투표할 때만 필요하다
   $("#voterBox").hidden = (songView !== "후보");
-  if (songView === "후보"){
-    const vc = $("#voterChips"); vc.innerHTML = "";
-    members().forEach(n => {
-      const b = document.createElement("button");
-      b.className = "chip sm"; b.type = "button"; b.textContent = n;
-      b.setAttribute("aria-pressed", String(n === me));
-      b.onclick = () => {
-        me = n; localStorage.setItem("bm_name:" + B, me);
-        renderMembers(); renderSongs();
-      };
-      vc.appendChild(b);
-    });
-    $("#voterHint").textContent = me ? (me + " 님으로 투표 중 — 다시 누르면 취소")
-                                     : "투표하려면 이름을 골라주세요.";
-  }
-
   const stats = songStats();
   let list = all.filter(s => spec.has.includes(s.status));
   if (songView === "후보") list = orderVotes(list);   // 좋아요 순이되, 누를 때마다 튀지 않게
@@ -1917,10 +1918,48 @@ function foldable(el, key, headNodes, aside){
 /* 파트 칸은 자유 텍스트다. "리드: 송명재 / 리듬: 양관우" 처럼 적으면
    [파트, 이름] 쌍으로 읽어서 알약으로 보여준다. 구분은 / , · 줄바꿈, 이름은 : 또는 띄어쓰기. */
 function parseParts(str){
-  return String(str || "").split(/[\/,·\n]+/).map(x => x.trim()).filter(Boolean).map(x => {
-    const m = x.match(/^(.+?)\s*[:：]\s*(.+)$/) || x.match(/^(\S+)\s+(.+)$/);
-    return m ? { part: m[1].trim(), who: m[2].trim() } : { part: "", who: x };
+  /* / 와 줄바꿈이 1차 구분. 조각에 ':' 가 없으면(옛 "리드 송명재, 리듬 양관우") , · 로도 나눈다.
+     그래서 "보컬, 기타1: 송명재" 처럼 한 사람이 여러 역할을 적어도 된다. */
+  const out = [];
+  String(str || "").split(/[\/\n]+/).map(x => x.trim()).filter(Boolean).forEach(piece => {
+    const bits = /[:：]/.test(piece) ? [piece] : piece.split(/[,·]+/).map(x => x.trim()).filter(Boolean);
+    bits.forEach(x => {
+      const m = x.match(/^(.+?)\s*[:：]\s*(.+)$/) || x.match(/^(\S+)\s+(.+)$/);
+      out.push(m ? { part: m[1].trim(), who: m[2].trim() } : { part: "", who: x });
+    });
   });
+  return out;
+}
+/* 곡 폼의 세션 편집: 멤버마다 한 줄, 역할 칸에 자유롭게 */
+function cleanRole(t){ return String(t || "").replace(/[\/\n:：]+/g, " ").replace(/\s+/g, " ").trim(); }
+function renderSessEditor(parts){
+  const list = parseParts(parts), mem = members(), roles = {}, extra = [];
+  list.forEach(p => {
+    if (mem.includes(p.who)) roles[p.who] = roles[p.who] ? roles[p.who] + ", " + p.part : p.part;
+    else extra.push(p.part ? p.part + ": " + p.who : p.who);
+  });
+  const box = $("#f_sess"); box.innerHTML = "";
+  if (!mem.length) box.innerHTML = '<p class="hint" style="margin:4px 0 0">멤버를 먼저 추가하세요.</p>';
+  mem.forEach(n => {
+    const r = document.createElement("div"); r.className = "sessrow" + (n === me ? " me" : "");
+    const nm = document.createElement("span"); nm.className = "sn"; nm.textContent = n;
+    const inp = document.createElement("input"); inp.type = "text"; inp.dataset.who = n;
+    inp.setAttribute("list", "roleList"); inp.placeholder = "역할 (보컬, 기타1 …)";
+    inp.value = roles[n] || "";
+    nm.onclick = () => inp.focus();
+    r.append(nm, inp); box.appendChild(r);
+  });
+  $("#f_sessExtra").value = extra.join(" / ");
+}
+function buildParts(){
+  const bits = [];
+  document.querySelectorAll("#f_sess input[data-who]").forEach(inp => {
+    const role = cleanRole(inp.value);
+    if (role) bits.push(role + ": " + inp.dataset.who);
+  });
+  const ex = $("#f_sessExtra").value.trim();
+  if (ex) bits.push(ex);
+  return bits.join(" / ");
 }
 function partPills(str){
   const list = parseParts(str);
@@ -1958,7 +1997,7 @@ function songCard(s, stat){
     hb.setAttribute("aria-label", "좋아요");
     hb.onclick = e => {
       e.stopPropagation();                           // 카드가 펼쳐지지 않게
-      if (!me){ setStatus("일정 탭에서 이름을 먼저 골라주세요", "err"); return; }
+      if (!me){ setStatus("맨 위에서 이름을 먼저 골라주세요", "err"); $("#whoCard").scrollIntoView({ behavior:"smooth", block:"center" }); return; }
       vote(s.id, tal.mine === 1 ? null : 1);
     };
     aside.appendChild(hb);
@@ -2101,6 +2140,7 @@ function openSongForm(s){
   $("#f_links").value  = s ? s.links  : "";
   renderLinkPreview();
   $("#f_parts").value  = s ? s.parts  : "";
+  renderSessEditor($("#f_parts").value);
   $("#f_tuning").value = s ? s.tuning : "";
   $("#f_memo").value   = s ? s.memo   : "";
   $("#songDelete").hidden = !s;
@@ -2121,7 +2161,7 @@ $("#songSave").onclick   = async () => {
     status: $("#f_status").value,
     title: $("#f_title").value.trim(), artist: $("#f_artist").value.trim(),
     key: $("#f_key").value.trim(), picker: $("#f_picker").value.trim(),
-    links: $("#f_links").value.trim(), parts: $("#f_parts").value.trim(),
+    links: $("#f_links").value.trim(), parts: buildParts(),
     tuning: $("#f_tuning").value.trim(), memo: $("#f_memo").value.trim()
   };
   if (!p.title){ setStatus("곡 제목을 적어주세요", "err"); return; }
