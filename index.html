@@ -375,6 +375,13 @@ ul.plain li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .detail p{margin:0 0 9px}
 .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:22px 6px}
 footer{color:var(--muted);font-size:11.5px;text-align:center;padding:10px 0 4px}
+/* 만든 사람의 다른 프로젝트로 (2026-09-21 Benny) */
+.more{text-align:center;margin:6px 0 4px}
+.more a{display:inline-block;color:var(--muted);font-size:12.5px;line-height:1.2;
+  text-decoration:none;padding:10px 15px;border:1px solid var(--line);border-radius:999px;
+  background:var(--card);transition:color .12s ease,border-color .12s ease}
+.more a:hover{color:var(--accent);border-color:var(--accent)}
+.more a:active{background:var(--soft)}
 
 /* ── 곡 / 이력 ── */
 .sec{margin-bottom:18px}
@@ -935,6 +942,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
   </div>
 
   <footer id="foot"></footer>
+  <p class="more"><a href="https://benny3s.github.io/" target="_blank" rel="noopener">🧭 개발자의 다른 프로젝트도 구경하기 →</a></p>
 </div>
 
 <div class="statusbar">
@@ -947,7 +955,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-21b";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-21c";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
