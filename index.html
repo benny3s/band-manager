@@ -154,6 +154,10 @@ table.sheet .nmbtn{appearance:none;border:0;background:transparent;font:inherit;
   font-weight:700;padding:0;text-align:left;cursor:pointer;min-height:42px;width:100%;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:manipulation}
 table.sheet .nmbtn.add{color:var(--accent);font-weight:600}
+/* 이름 밑 '최근 수정' — 그 사람이 캘린더를 마지막으로 저장한 때 (2026-09-21 Benny) */
+table.sheet .nmbtn .sub,table.sheet th.corner .sub{display:block;font-weight:500;font-size:10px;
+  color:var(--muted);letter-spacing:-.2px;font-variant-numeric:tabular-nums;margin-top:1px}
+table.sheet tr.me .nmbtn .sub{color:var(--accent);opacity:.8}
 table.sheet th.nm{padding:4px 8px}
 table.sheet .addcol{border-right:0;background:transparent;min-width:0}
 table.sheet th.addcol{padding:4px}
@@ -236,6 +240,7 @@ table.sheet td.on .hr,table.sheet td.on .mm{color:var(--on-accent);opacity:1}
 html.scrlock,html.scrlock body{overflow:hidden;overscroll-behavior:none}
 .hpeople .wholine{display:flex;flex-wrap:wrap;gap:4px 6px;margin:2px 0 8px}
 .hpeople .absline{margin:2px 0}
+.hpeople .wholine.und .whob{background:transparent;border:1px dashed var(--line);color:var(--muted);font-weight:500}
 .whob{appearance:none;border:0;background:var(--soft);border-radius:8px;padding:6px 10px;font:inherit;font-size:13.5px;
   font-weight:600;color:var(--ink);cursor:pointer;min-height:34px}
 .hpeople .why{color:var(--muted)}
@@ -928,7 +933,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-20w";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-21a";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -993,7 +998,7 @@ function once(params){
 }
 
 /* ═══════════════ 상태 ═══════════════ */
-let ST = { bands:[], members:{}, config:{}, hours:{}, notes:{}, songs:[], hist:[], votes:{} };
+let ST = { bands:[], members:{}, config:{}, hours:{}, notes:{}, songs:[], hist:[], votes:{}, edited:{} };
 let B  = "";                  // 현재 밴드 id
 let me = "";                  // 현재 밴드에서 내 이름
 let sel = new Set(), noteDraft = {};
@@ -1030,6 +1035,15 @@ function cfg(){ return ST.config[B] || { dates:[], hourStart:9, hourEnd:12, titl
 function members(){ return ST.members[B] || []; }
 function hoursOf(){ return ST.hours[B] || {}; }
 function notesOf(){ return ST.notes[B] || {}; }
+function editedOf(){ return (ST.edited || {})[B] || {}; }
+function nowStamp(){ const o = new Date(); return iso(o) + "T" + String(o.getHours()).padStart(2,"0") + ":" + String(o.getMinutes()).padStart(2,"0") + ":00"; }
+/** 마지막 수정 시각 "2026-09-21T14:32:05" → "9/21 14:32" (올해가 아니면 연도까지) */
+function fmtEdit(v){
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(v || ""));
+  if (!m) return "";
+  const y = +m[1], now = new Date().getFullYear();
+  return (y === now ? "" : y + ".") + (+m[2]) + "/" + (+m[3]) + " " + m[4] + ":" + m[5];
+}
 function songsOf(st){ return ST.songs.filter(s => s.band === B && (!st || s.status === st)); }
 function histOf(){ return ST.hist.filter(h => h.band === B); }
 function songById(id){ return ST.songs.find(s => s.id === id); }
@@ -1436,14 +1450,17 @@ function renderSheet(){
 }
 function drawSheet(t, ds, hint, tid){
   t.innerHTML = "";
-  const main = !tid, H = hoursOf(), N = notesOf();
+  const main = !tid, H = hoursOf(), N = notesOf(), ED = editedOf();
   if (!ds.length || !members().length) return;
 
   const tt = tid ? tablesOf().find(y => y.id === tid) : curTable();
   if (hint && tt) hint.textContent = tSummary(tt);
 
   const thead = document.createElement("thead"), hr = document.createElement("tr");
-  const c0 = document.createElement("th"); c0.className = "nm corner"; c0.textContent = "이름";
+  const c0 = document.createElement("th"); c0.className = "nm corner";
+  c0.innerHTML = '<span></span><span class="sub"></span>';
+  c0.querySelector("span").textContent = "이름";
+  c0.querySelector(".sub").textContent = "최근 수정";
   hr.appendChild(c0);
   ds.forEach(d => {
     const th = document.createElement("th");
@@ -1470,7 +1487,13 @@ function drawSheet(t, ds, hint, tid){
     if (mine) tr.className = "me";
     const th = document.createElement("th"); th.className = "nm";
     const nb = document.createElement("button"); nb.type = "button"; nb.className = "nmbtn";
-    nb.textContent = n + (mine ? " (나)" : "");
+    const nt = document.createElement("span"); nt.textContent = n + (mine ? " (나)" : "");
+    nb.appendChild(nt);
+    const ed = document.createElement("span"); ed.className = "sub";
+    const et = fmtEdit(ED[n]);
+    ed.textContent = et || "–";
+    nb.appendChild(ed);
+    nb.title = et ? (n + " · 마지막 수정 " + et) : (n + " · 수정 기록 없음");
     nb.onclick = () => openMember(n);                    // 이름을 누르면 응답·이름변경·빼기
     th.appendChild(nb);
     tr.appendChild(th);
@@ -1767,7 +1790,7 @@ async function save(){
     payload.notes[d] = noteDraft[d] || "";
   });
   /* 결과 탭이 서버를 기다리지 않게 내 응답을 먼저 반영한다 */
-  const backup = JSON.stringify({ h: ST.hours, n: ST.notes });
+  const backup = JSON.stringify({ h: ST.hours, n: ST.notes, e: ST.edited });
   if (!ST.hours[B]) ST.hours[B] = {};
   if (!ST.notes[B]) ST.notes[B] = {};
   const keep = {}, prev = ST.hours[B][me] || {};
@@ -1776,6 +1799,9 @@ async function save(){
   ST.hours[B][me] = keep;
   ST.notes[B][me] = {};
   for (const d in payload.notes) if (payload.notes[d]) ST.notes[B][me][d] = payload.notes[d];
+  if (!ST.edited) ST.edited = {};
+  if (!ST.edited[B]) ST.edited[B] = {};
+  ST.edited[B][me] = nowStamp();                 // 서버 응답이 오면 서버 시각으로 덮인다
   dirty = false;
   renderMembers(); renderResult();
   setStatus("저장 중… — " + me);
@@ -1787,7 +1813,7 @@ async function save(){
     renderMembers(); renderResult();
   } catch(e){
     const b = JSON.parse(backup);
-    ST.hours = b.h; ST.notes = b.n;
+    ST.hours = b.h; ST.notes = b.n; ST.edited = b.e;
     dirty = true;
     renderMembers(); renderResult();
     setStatus("저장 실패 — " + e.message + " (저장 버튼을 다시 눌러주세요)", "err");
@@ -2566,13 +2592,26 @@ function histCard(h, fresh, today){
     b.onclick = e => { e.stopPropagation(); showHistPerson(h.date, n); };
     return b;
   };
-  const att = members().filter(n => !absSet.has(n));
+  /* 2026-09-21 Benny: "미정으로 한 사람도 참석으로 떠서 헷갈려"
+     → 아직 안 온 합주(예정)는 캘린더에 아무것도 안 넣은 사람을 '미정'으로 뺀다.
+        이미 끝난 합주(완료)는 불참 목록이 곧 기록이라 그대로 둔다. */
+  const rest = members().filter(n => !absSet.has(n));
+  const ck2  = keyForDate(h.date);
+  const said = n => !ck2 || Array.isArray((hoursOf()[n] || {})[ck2]);
+  const att  = h.status === "예정" ? rest.filter(said)  : rest;
+  const und  = h.status === "예정" ? rest.filter(n => !said(n)) : [];
   if (members().length || abs.length){
     const bd = document.createElement("div"); bd.className = "body hpeople";
     if (att.length && h.status !== "취소"){
       const k = document.createElement("span"); k.className = "k"; k.textContent = "참석";
       const line = document.createElement("div"); line.className = "wholine";
       att.forEach(n => line.appendChild(who(n)));
+      bd.append(k, line);
+    }
+    if (und.length && h.status !== "취소"){
+      const k = document.createElement("span"); k.className = "k"; k.textContent = "미정 (캘린더 응답 없음)";
+      const line = document.createElement("div"); line.className = "wholine und";
+      und.forEach(n => line.appendChild(who(n)));
       bd.append(k, line);
     }
     if (abs.length){
@@ -3166,7 +3205,7 @@ $("#copyLink").onclick = async () => {
 $("#resetBtn").onclick = () => {
   if (!confirm("이 밴드의 모든 응답과 메모를 지웁니다. 계속할까요?")) return;
   act({ action:"reset_answers", band:B }, "초기화됨", () => {
-    ST.hours[B] = {}; ST.notes[B] = {}; sel = new Set(); noteDraft = {}; noneSel = new Set();
+    ST.hours[B] = {}; ST.notes[B] = {}; if (ST.edited) ST.edited[B] = {}; sel = new Set(); noteDraft = {}; noneSel = new Set();
   });
 };
 $("#calClear").onclick = () => {

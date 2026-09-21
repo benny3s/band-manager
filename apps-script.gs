@@ -1,5 +1,5 @@
 /**
- * 밴드매니저 — Google Apps Script 웹앱 (v3)
+ * 밴드매니저 — Google Apps Script 웹앱 (v16)
  *
  * 스프레드시트는 "데이터 저장소"일 뿐입니다. 모든 조작은 웹페이지에서 합니다.
  * 탭 8개 (스크립트가 알아서 만듭니다). 모든 행은 첫 컬럼에 밴드를 답니다.
@@ -18,6 +18,7 @@
  *   이력   id | 밴드 | 날짜 | 시작 | 종료 | 합주실 | 룸 | 상태 | 불참 | 곡 | 메모
  *            상태 = 예정 | 완료 | 취소 / 불참·곡 = 쉼표로 구분
  *   투표   밴드 | 곡 | 이름 | 값        (값 = 1 좋아요 / -1 별로 / 0 보류)
+ *   수정   밴드 | 이름 | 시각          (그 사람이 캘린더 응답을 마지막으로 저장한 때, v16)
  *
  * 헤더가 다른 옛 탭이 있으면 "<이름>_구버전"으로 이름만 바꿔 보존하고 새로 만듭니다.
  *
@@ -37,7 +38,8 @@ var TABS = {
   note:   { name: '메모', head: ['밴드', '이름', '날짜', '메모'] },
   song:   { name: '곡',   head: ['id','밴드','상태','제목','아티스트','키','선곡자','링크','파트','튜닝','메모','추가일'] },
   hist:   { name: '이력', head: ['id','밴드','날짜','시작','종료','합주실','룸','상태','불참','곡','메모'] },
-  vote:   { name: '투표', head: ['밴드', '곡', '이름', '값'] }
+  vote:   { name: '투표', head: ['밴드', '곡', '이름', '값'] },
+  edit:   { name: '수정', head: ['밴드', '이름', '시각'] }
 };
 
 var CONF_DEFAULT = { dates: '', hourStart: 9, hourEnd: 22, title: '' };
@@ -344,7 +346,7 @@ function state_(pins) {
   var out = {
     ok: true,
     bands: [], members: {}, config: {}, hours: {}, notes: {},
-    songs: [], hist: [], votes: {},
+    songs: [], hist: [], votes: {}, edited: {},
     now: Utilities.formatDate(new Date(), 'Asia/Seoul', "yyyy-MM-dd'T'HH:mm:ss")
   };
 
@@ -359,6 +361,7 @@ function state_(pins) {
                       hourEnd: CONF_DEFAULT.hourEnd, title: bl[i]['이름'], windows: {} };
     out.hours[b] = {};
     out.notes[b] = {};
+    out.edited[b] = {};
   }
 
   var ms = rows_('member'), i2;
@@ -402,6 +405,13 @@ function state_(pins) {
     if (!out.notes[nb] || !open[nb] || !nn || !ndd || !ns[i2]['메모']) continue;
     if (!out.notes[nb][nn]) out.notes[nb][nn] = {};
     out.notes[nb][nn][ndd] = ns[i2]['메모'];
+  }
+
+  var ts = rows_('edit');                         // 마지막 수정 시각 (v16)
+  for (i2 = 0; i2 < ts.length; i2++) {
+    var tb2 = ts[i2]['밴드'], tn2 = ts[i2]['이름'], tv2 = ts[i2]['시각'];
+    if (!out.edited[tb2] || !open[tb2] || !tn2 || !tv2) continue;
+    out.edited[tb2][tn2] = String(tv2);
   }
 
   var ss = rows_('song');
@@ -519,7 +529,7 @@ function act_(action, p) {
       if (list[i]['밴드'] === band && list[i]['이름'] === from) { list[i]['이름'] = to; found = true; }
     if (!found) return { ok: false, error: '없는 멤버입니다' };
     put_('member', list);
-    ['resp','note','vote'].forEach(function (k) {
+    ['resp','note','vote','edit'].forEach(function (k) {
       var l = rows_(k);
       for (var j = 0; j < l.length; j++)
         if (l[j]['밴드'] === band && l[j]['이름'] === from) l[j]['이름'] = to;
@@ -532,7 +542,7 @@ function act_(action, p) {
     put_('member', rows_('member').filter(function (x) {
       return !(x['밴드'] === band && x['이름'] === rm);
     }));
-    ['resp','note','vote'].forEach(function (k) {
+    ['resp','note','vote','edit'].forEach(function (k) {
       put_(k, rows_(k).filter(function (x) { return !(x['밴드'] === band && x['이름'] === rm); }));
     });
     return;
@@ -598,12 +608,22 @@ function act_(action, p) {
       nl.push({ '밴드': band, '이름': name, '날짜': d2, '메모': String(pn[d2]).slice(0, 200) });
     }
     put_('note', nl);
+
+    /* 마지막 수정 시각 (v16) — 캘린더 응답을 저장할 때마다 갱신 */
+    var tnow = Utilities.formatDate(new Date(), 'Asia/Seoul', "yyyy-MM-dd'T'HH:mm:ss");
+    var tl2 = rows_('edit'), tfound = false;
+    for (var t2 = 0; t2 < tl2.length; t2++) {
+      if (tl2[t2]['밴드'] === band && tl2[t2]['이름'] === name) { tl2[t2]['시각'] = tnow; tfound = true; }
+    }
+    if (!tfound) tl2.push({ '밴드': band, '이름': name, '시각': tnow });
+    put_('edit', tl2);
     return;
   }
 
   if (action === 'reset_answers') {
     put_('resp', rows_('resp').filter(function (x) { return x['밴드'] !== band; }));
     put_('note', rows_('note').filter(function (x) { return x['밴드'] !== band; }));
+    put_('edit', rows_('edit').filter(function (x) { return x['밴드'] !== band; }));
     return;
   }
 
