@@ -154,6 +154,15 @@ table.sheet .nmbtn{appearance:none;border:0;background:transparent;font:inherit;
   font-weight:700;padding:0;text-align:left;cursor:pointer;min-height:42px;width:100%;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:manipulation}
 table.sheet .nmbtn.add{color:var(--accent);font-weight:600}
+/* 합주 잡힌 날 — 날짜 머리 배지 (2026-09-21 Benny) */
+table.sheet th .dow.hap{color:var(--accent);font-weight:700;font-size:10px;letter-spacing:-.2px}
+table.sheet th.dhead.hasHap{background:rgba(var(--accent-rgb),.07)}
+.dm-hap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px}
+.dm-hap #dmHapNow{color:var(--accent);font-weight:600;font-size:13.5px}
+.best .b{position:relative}
+.best .bgo{position:absolute;right:10px;top:50%;transform:translateY(-50%);appearance:none;border:1px solid var(--line);
+  background:var(--card);border-radius:9px;font:inherit;font-size:12.5px;font-weight:600;color:var(--accent);
+  padding:7px 10px;min-height:36px;cursor:pointer}
 /* 이름 밑 '최근 수정' — 그 사람이 캘린더를 마지막으로 저장한 때 (2026-09-21 Benny) */
 table.sheet .nmbtn .sub,table.sheet th.corner .sub{display:block;font-weight:500;font-size:10px;
   color:var(--muted);letter-spacing:-.2px;font-variant-numeric:tabular-nums;margin-top:1px}
@@ -357,7 +366,7 @@ ul.plain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;g
 ul.plain li{display:flex;align-items:center;gap:8px;font-size:14px}
 ul.plain li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .best{display:flex;flex-direction:column;gap:9px}
-.best .b{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:var(--bg)}
+.best .b{border:1px solid var(--line);border-radius:11px;padding:11px 96px 11px 13px;background:var(--bg)}
 .best .b.top{border-color:var(--accent);background:var(--soft)}
 .best .b .bt{font-weight:700;font-size:14.5px;letter-spacing:-.02em}
 .best .b .bs{color:var(--muted);font-size:12.5px;margin-top:2px}
@@ -644,6 +653,11 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
         </div>
       </div>
       <div id="dmOthers"></div>
+      <!-- 캘린더에서 바로 합주 잡기 (2026-09-21 Benny) -->
+      <div class="dm-hap" id="dmHapRow">
+        <span id="dmHapNow"></span>
+        <button class="btn" id="dmHap" type="button">🎸 이 날 합주 잡기</button>
+      </div>
       <!-- 날짜 자체를 고치는 건 드물어서 맨 아래에 접어둔다 -->
       <details class="dm-set" id="dmSet">
         <summary>⚙ 이 날 설정 — 시간대 바꾸기 · 후보에서 빼기</summary>
@@ -933,7 +947,7 @@ table.sum tbody tr:hover td.go{color:var(--accent);opacity:1}
 <script>
 /* ═══════════════ 설정 ═══════════════ */
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbwsT6TMxdDKVwpgit0B-i2kgLBCewX5XLQia7BUOje4TGNMr2IuFqO7b3DRz25v-Xpo0g/exec";
-const BUILD = "2026-09-21a";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
+const BUILD = "2026-09-21b";   // 화면 아래에 찍힌다. 옛 페이지를 보고 있는지 확인용
 
 /* ═══════════════ 통신 (JSONP) ═══════════════
    Apps Script /exec 는 googleusercontent 로 리다이렉트되는데
@@ -1464,12 +1478,14 @@ function drawSheet(t, ds, hint, tid){
   hr.appendChild(c0);
   ds.forEach(d => {
     const th = document.createElement("th");
-    th.className = "dhead" + (dObj(d).getDay() === 0 ? " sun" : "");
-    th.innerHTML = '<span></span><span class="dow"></span><span class="dow win"></span>';
+    const hp = hapAt(d);
+    th.className = "dhead" + (dObj(d).getDay() === 0 ? " sun" : "") + (hp ? " hasHap" : "");
+    th.innerHTML = '<span></span><span class="dow"></span><span class="dow win"></span><span class="dow hap"></span>';
     th.querySelector("span").textContent = fmtD(d);
     th.querySelector(".dow").textContent = fmtDow(d);
     th.querySelector(".win").textContent = winLabel(d);
-    th.title = "눌러서 이 날 시간대 바꾸기 · 후보에서 빼기";
+    th.querySelector(".hap").textContent = hapBadge(hp);           // 합주 잡힌 날 배지 (2026-09-21)
+    th.title = hp ? ("합주 " + hapBadge(hp).replace("🎸 ", "") + " · 눌러서 보기") : "눌러서 이 날 시간대 바꾸기 · 후보에서 빼기";
     th.onclick = () => openDay(d);                       // 날짜를 누르면 그 날 창(시간대·빼기 포함)
     hr.appendChild(th);
   });
@@ -1748,8 +1764,14 @@ function openDay(d, who, mode){
       }
       box.appendChild(row);
     });
+
+  /* 이 날 합주 — 잡혀 있으면 그 시간, 없으면 잡기 버튼 (2026-09-21 Benny) */
+  const hap = hapAt(d);
+  $("#dmHapNow").textContent = hap ? hapBadge(hap) + (hap.place ? " · " + hap.place + (hap.room ? " " + hap.room : "") : "") : "";
+  $("#dmHap").textContent = hap ? "일정에서 보기 →" : "🎸 이 날 합주 잡기";
   $("#dayModal").hidden = false;
 }
+$("#dmHap").onclick = () => { const d = dmDate; if (d) newHapAt(d); };
 function closeDay(){ $("#dayModal").hidden = true; dmDate = null; }
 $("#dmClose").onclick = closeDay;
 $("#dmMineBtn").onclick = () => { const d = dmDate; if (d) openDay(d); };
@@ -1954,6 +1976,12 @@ function renderResult(){
       el.querySelector(".bt").textContent = fmtFull(b.d) + " " + hh(b.from) + "–" + hh(b.to);
       el.querySelector(".bs").textContent =
         b.who.length + "명 내내 가능 · " + b.len + "시간 · " + (b.who.join(", ") || "—");
+      /* 이 시간 그대로 합주 잡기 (2026-09-21 Benny: "결과보기에서 합주 일정 등록까지 연계") */
+      const go = document.createElement("button");
+      go.type = "button"; go.className = "bgo";
+      go.textContent = hapAt(b.d) ? "합주 보기" : "합주 잡기";
+      go.onclick = e => { e.stopPropagation(); newHapAt(b.d, hh(b.from), hh(b.to)); };
+      el.appendChild(go);
       best.appendChild(el);
     });
   }
@@ -2654,15 +2682,16 @@ function fmtAbs(n, why){ why = String(why || "").replace(/[,\n()]/g, " ").replac
 function keyForDate(d){ const t = tablesOf().find(x => x.dates.includes(d)); return t ? tKey(t, d) : null; }
 function calMemo(n, d){ const k = keyForDate(d); return k ? ((notesOf()[n] || {})[k] || "") : ""; }
 
-function openHistForm(h){
+function openHistForm(h, pre){
+  pre = pre || {};
   histEditing = h || null;
   $("#histFormTitle").textContent = h ? "회차 수정" : "회차 추가";
-  $("#h_date").value   = h ? h.date  : "";
-  $("#h_from").value   = h ? h.from  : "10:00";
-  $("#h_to").value     = h ? h.to    : "12:00";
+  $("#h_date").value   = h ? h.date  : (pre.date || "");
+  $("#h_from").value   = h ? h.from  : (pre.from !== undefined ? pre.from : "10:00");
+  $("#h_to").value     = h ? h.to    : (pre.to   !== undefined ? pre.to   : "12:00");
   $("#h_place").value  = h ? h.place : (lastPlace() || "");
   $("#h_room").value   = h ? h.room  : (lastRoom() || "");
-  $("#h_status").value = h ? h.status : "완료";
+  $("#h_status").value = h ? h.status : (pre.status || "완료");
   $("#h_memo").value   = h ? h.memo  : "";
   hAbsent = new Map((h ? h.absent : []).map(x => { const a = parseAbs(x); return [a.name, a.why]; }));
   hSongs  = new Set(h ? h.songs  : []);
@@ -2672,6 +2701,30 @@ function openHistForm(h){
   $("#histForm").hidden = false; $("#formBack").hidden = false;
   $("#histForm").scrollTop = 0;
 }
+/* ═══ 캘린더에서 바로 합주 잡기 (2026-09-21 Benny: "캘린더 기준으로 합주 날짜를 정하고, 표시하고") ═══
+   날짜 키(tx~2026-10-04 형태일 수 있음)에서 날짜만 떼어 일정 탭의 회차 폼을 연다.
+   시간은 Benny 선택대로 비워 두고(결과 보기에서 오면 그 구간을 채운다), 불참은 캘린더 '✗' 로 자동. */
+function todayIso(){ return iso(new Date()); }
+/** 그 날짜에 잡힌 합주(취소 제외). 캘린더 배지와 '이미 잡혀 있음' 판단에 쓴다 */
+function hapAt(d){ const p = dateOf(d); return histOf().find(h => h.date === p && h.status !== "취소") || null; }
+/** 배지 글자 "🎸 17–20" (시간이 없으면 "🎸 합주") */
+function hapBadge(h){
+  if (!h) return "";
+  const t = x => String(x || "").slice(0, 5).replace(/:00$/, "");
+  return h.from ? "🎸 " + t(h.from) + "–" + t(h.to) : "🎸 합주";
+}
+/** 캘린더 → 회차 폼. from/to 를 주면 그 시간으로 채운다 (결과 보기의 추천 시간) */
+function newHapAt(d, from, to){
+  const p = dateOf(d);
+  ["dayModal","heatModal","calModal","gridModal"].forEach(closeModal);
+  show("hist");
+  const ex = hapAt(p);
+  if (ex){ openHistForm(ex); return; }                       // 이미 잡혀 있으면 그걸 연다
+  openHistForm(null, { date:p, from: from || "", to: to || "",
+                       status: p >= todayIso() ? "예정" : "완료" });
+  setStatus(fmtFull(p) + " — 시간·합주실을 채우고 저장하세요");
+}
+
 /** 캘린더에서 그 날 '불가'로 찍은 사람을 불참으로, 메모를 이유로 채운다 (이미 고른 건 그대로) */
 function fillAbsFromCal(){
   const d = $("#h_date").value, k = d && keyForDate(d);
