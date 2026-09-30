@@ -65,6 +65,13 @@ a.lnk::before{content:"▶";font-size:9px}
 .lockcard{text-align:center;padding:30px 18px}
 .lockcard input{max-width:180px;text-align:center;letter-spacing:.3em;margin:0 auto}
 .bandrow{display:flex;align-items:center;gap:8px}
+/* 설정 창 — 시간표 · 밴드 두 묶음 + 접힌 지우기 (2026-09-30) */
+.cfg-h{font-size:15px;font-weight:800;letter-spacing:-.02em;margin:18px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+#ts_schedSec .cfg-h{margin-top:12px}
+#bs_members .li{padding:1px 0}
+#bs_members .btn.sm{min-height:36px;padding:4px 10px}
+.cfg-danger{margin-top:18px;border-top:1px solid var(--line);padding-top:10px}
+.cfg-danger summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);list-style:revert}
 </style>
 </head>
 <body>
@@ -137,6 +144,7 @@ a.lnk::before{content:"▶";font-size:9px}
       <h2 style="margin:0 0 4px">아직 시간표가 없어요</h2>
       <p class="hint">시간표를 만들고 후보 날짜를 고르면, 멤버들이 ○ △ ✕ 로 넣어요.</p>
       <button class="btn primary wide" id="tNew0" type="button">＋ 시간표 만들기</button>
+      <button class="btn ghost" id="tNoneSet" type="button" style="margin-top:8px">⚙ 밴드 설정 (멤버·PIN)</button>
     </div>
     <div data-sched="sheet"></div>
   </div>
@@ -207,50 +215,49 @@ a.lnk::before{content:"▶";font-size:9px}
   </div>
 </div>
 
-<!-- ══════════ 밴드 설정 ══════════ -->
-<div class="modal" id="bandSetModal" hidden>
-  <div class="sheet tall" role="dialog" aria-modal="true">
+<!-- ══════════ 설정 — 시간표 + 밴드를 한 창에 ══════════
+     (2026-09-30 Benny: "설정 창 구조가 이상해. PIN 바꾸는 것도 한 번 더 들어가야 하고, 멤버도 그렇고")
+     예전: 시간표 설정 → '⚙ 밴드 설정(멤버·PIN)' 을 한 번 더 눌러야 했다. 이제 한 창에서 바로 -->
+<div class="modal" id="tSetModal" hidden>
+  <div class="sheet tall" role="dialog" aria-modal="true" style="max-width:460px">
     <div class="spread">
-      <h2 style="margin:0">밴드 설정</h2>
+      <h2 style="margin:0">설정</h2>
       <button class="btn ghost" type="button" data-close>닫기</button>
     </div>
+
+    <div id="ts_schedSec">
+      <h3 class="cfg-h">🗓️ 이 시간표</h3>
+      <button class="btn soft wide" id="ts_dates" type="button" style="margin:2px 0 12px">📅 후보 날짜 · 시간대 고르기</button>
+      <label class="fld"><span>시간표 이름</span>
+        <div class="row nowrap"><input type="text" id="ts_name" maxlength="60" style="flex:1 1 auto"><button class="btn" id="ts_nameSave" type="button">저장</button></div></label>
+    </div>
+
+    <h3 class="cfg-h">🎸 밴드</h3>
     <label class="fld"><span>밴드 이름</span>
       <div class="row nowrap"><input type="text" id="bs_name" maxlength="30" style="flex:1 1 auto"><button class="btn" id="bs_nameSave" type="button">저장</button></div></label>
-    <h3 class="subh" style="margin-top:20px">멤버</h3>
-    <div class="list" id="bs_members"></div>
-    <div class="row nowrap" style="margin-top:10px">
-      <input type="text" id="bs_memIn" maxlength="30" placeholder="이름" style="flex:1 1 auto">
-      <button class="btn" id="bs_memAdd" type="button">추가</button>
+    <div class="fld"><span id="bs_memHead">멤버</span>
+      <div class="list" id="bs_members"></div>
+      <div class="row nowrap" style="margin-top:8px">
+        <input type="text" id="bs_memIn" maxlength="30" placeholder="새 멤버 이름" style="flex:1 1 auto">
+        <button class="btn" id="bs_memAdd" type="button">추가</button>
+      </div>
     </div>
-    <h3 class="subh" style="margin-top:20px">PIN</h3>
-    <p class="hint" id="bs_pinState" style="margin:0 0 8px"></p>
-    <div class="row nowrap">
-      <input type="text" id="bs_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="새 PIN (비우면 해제)" style="flex:1 1 auto">
-      <button class="btn" id="bs_pinSave" type="button">바꾸기</button>
+    <div class="fld"><span>PIN</span>
+      <p class="hint" id="bs_pinState" style="margin:0 0 8px"></p>
+      <div class="row nowrap">
+        <input type="text" id="bs_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="새 PIN (비우면 해제)" style="flex:1 1 auto">
+        <button class="btn" id="bs_pinSave" type="button">바꾸기</button>
+      </div>
     </div>
-    <div class="row" style="margin-top:22px;justify-content:flex-end">
-      <button class="btn ghost danger" id="bs_delete" type="button">이 밴드 지우기</button>
-    </div>
-  </div>
-</div>
 
-<!-- ══════════ 시간표 설정 ══════════ -->
-<div class="modal" id="tSetModal" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" style="max-width:440px">
-    <div class="spread">
-      <h2 style="margin:0">시간표 설정</h2>
-      <button class="btn ghost" type="button" data-close>닫기</button>
-    </div>
-    <button class="btn soft wide" id="ts_dates" type="button" style="margin:10px 0 4px">📅 후보 날짜 · 시간대 고르기</button>
-    <label class="fld"><span>시간표 이름</span>
-      <div class="row nowrap"><input type="text" id="ts_name" maxlength="60" style="flex:1 1 auto"><button class="btn" id="ts_nameSave" type="button">저장</button></div></label>
-    <div class="row" style="margin-top:14px">
-      <button class="btn ghost" id="ts_band" type="button">⚙ 밴드 설정 (멤버·PIN)</button>
-    </div>
-    <div class="row" style="margin-top:18px;justify-content:space-between">
-      <button class="btn ghost danger" id="ts_reset" type="button">응답 전부 지우기</button>
-      <button class="btn ghost danger" id="ts_delete" type="button">이 시간표 지우기</button>
-    </div>
+    <details class="cfg-danger">
+      <summary>지우기</summary>
+      <div class="row" style="margin-top:10px;gap:6px">
+        <button class="btn ghost danger" id="ts_reset" type="button">응답 전부 지우기</button>
+        <button class="btn ghost danger" id="ts_delete" type="button">이 시간표 지우기</button>
+        <button class="btn ghost danger" id="bs_delete" type="button">이 밴드 지우기</button>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -331,7 +338,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-09-30e";
+const BUILD = "2026-09-30f";
 
 /* ── sched.js 에 알려 줄 것 ── */
 const SCHED_KEEP_ME = true;                                   // 밴드 멤버를 시간표에 뒤늦게 채운다
@@ -417,7 +424,10 @@ async function openBand(bid, pin){
   ls("bm_last", bid);
   me = ls("bm_me:" + bid);
   const want = new URLSearchParams(location.search).get("t") || ls("bm_t:" + bid);
-  bandUnsub.push(dataRef().onSnapshot(s => { if (!s.exists){ return; } BD = s.data(); renderAll(); }));
+  bandUnsub.push(dataRef().onSnapshot(s => {
+    if (!s.exists){ return; } BD = s.data(); renderAll();
+    if (!$("#tSetModal").hidden) renderBsMembers();                // 멤버 추가가 설정 창에 바로 보이게
+  }));
   bandUnsub.push(SCHED_COL().onSnapshot(s => {
     SCHEDS = s.docs.map(d => Object.assign({ id: d.id }, d.data()))
       .sort((a, b) => ((a.createdAt && a.createdAt.toMillis()) || 0) - ((b.createdAt && b.createdAt.toMillis()) || 0));
@@ -998,6 +1008,13 @@ function renderBandSet(){
   $("#bs_name").value = b.name || "";
   $("#bs_pinState").textContent = b.locked ? "🔒 PIN이 걸려 있어요. 새로 넣으면 바뀌고, 비우고 누르면 풀려요." : "PIN 없음 — 링크를 아는 누구나 들어와요.";
   $("#bs_pin").value = "";
+  $("#bs_pin").placeholder = b.locked ? "새 PIN (비우면 해제)" : "PIN 숫자 4~8자리";
+  $("#bs_pinSave").textContent = b.locked ? "바꾸기" : "걸기";
+  renderBsMembers();
+}
+/** 멤버 목록만 다시 (추가·빼기가 스냅샷으로 들어올 때 — 입력 중인 PIN·이름 칸은 건드리지 않게) */
+function renderBsMembers(){
+  $("#bs_memHead").textContent = "멤버 " + bmMembers().length + "명";
   const box = $("#bs_members"); box.innerHTML = "";
   bmMembers().forEach(n => {
     const row = document.createElement("div"); row.className = "li";
@@ -1088,7 +1105,7 @@ $("#bs_pinSave").onclick = async () => {
     for (const col of ["songs", "sessions"]){ const qs = await src.collection(col).get(); for (const d of qs.docs) await d.ref.delete(); }
     await src.delete();
     ls("bm_key:" + B, pin ? newKey : "");
-    const bid = B; closeModal("bandSetModal");
+    const bid = B; closeModal("tSetModal");
     await openBand(bid);
     setStatus(pin ? "🔒 PIN을 바꿨어요" : "PIN을 풀었어요", "ok");
   } catch(e){ setStatus("실패 — " + errText(e), "err"); }
@@ -1106,15 +1123,19 @@ $("#bs_delete").onclick = async () => {
     for (const col of ["songs", "sessions"]){ const qs = await src.collection(col).get(); for (const d of qs.docs) await d.ref.delete(); }
     await src.delete();
     await db.collection("bands").doc(bid).delete();
-    closeModal("bandSetModal"); closeBand(); ls("bm_last", ""); setUrl(); renderAll();
+    closeModal("tSetModal"); closeBand(); ls("bm_last", ""); setUrl(); renderAll();
     setStatus("지웠어요", "ok");
   } catch(e){ setStatus("실패 — " + errText(e), "err"); }
 };
 
 /* ═══ 이벤트 ═══ */
 MODAL_OPEN.bandModal = () => renderBandList();
-MODAL_OPEN.bandSetModal = () => renderBandSet();
-MODAL_OPEN.tSetModal = () => { $("#ts_name").value = (meet() && meet().title) || ""; };
+MODAL_OPEN.tSetModal = () => {
+  $("#ts_schedSec").hidden = !(M && meet());                      // 시간표가 없으면 밴드 설정만
+  $("#ts_reset").hidden = $("#ts_delete").hidden = !(M && meet());
+  $("#ts_name").value = (meet() && meet().title) || "";
+  renderBandSet();
+};
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
@@ -1125,9 +1146,9 @@ $("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lock
 ["sched", "song", "hist"].forEach(k => $("#tab-" + k).onclick = () => setTab(k));
 $("#tNew0").onclick = newSched;
 $("#tEdit").onclick = () => openModal("tSetModal");
+$("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
 $("#heatOpenBtn").onclick = () => openModal("heatModal");
 $("#ts_dates").onclick = () => openModal("calModal");
-$("#ts_band").onclick = () => openModal("bandSetModal");
 $("#ts_nameSave").onclick = () => {
   const t = $("#ts_name").value.trim(); if (!t) return;
   act({ action:"meet_set", title: t }, "시간표 이름 저장됨", () => { if (ST.meet) ST.meet.title = t; });
