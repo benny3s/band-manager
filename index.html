@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-09-29a">
+<link rel="stylesheet" href="../when/ui.css?v=2026-09-30a">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -321,8 +321,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-09-29a"></script>
-<script src="../when/sched.js?v=2026-09-29a"></script>
+<script src="../when/core.js?v=2026-09-30a"></script>
+<script src="../when/sched.js?v=2026-09-30a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -331,13 +331,19 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-09-29a";
+const BUILD = "2026-09-30a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 const SCHED_KEEP_ME = true;                                   // 밴드 멤버를 시간표에 뒤늦게 채운다
 function SCHED_COL(){ return db.collection("bandData").doc(KEY).collection("scheds"); }
 function SCHED_ME_KEY(){ return "bm_me:" + B; }                // 이름은 밴드 단위로 기억
 function SCHED_NS(){ return "bm:" + KEY.slice(0, 16); }         // 지난 화면 캐시도 밴드마다 따로 (시간표 id 가 겹친다)
+/* 이력의 '예정' 합주도 표·달력에 📌 로 (2026-09-30 Benny: "10/4 합주가 잡혀있는데 달력에는 표시가 안되어있어")
+   이력에 직접 넣은 합주는 📌 정한 것(fixed)에 없어서 안 보였다. 표시만 하고 fixed 는 건드리지 않는다 */
+function extraFixes(){
+  return SESS.filter(s => s.status === "예정" && /^\d{4}-\d{2}-\d{2}$/.test(s.date || ""))
+    .map(s => /^\d{2}:\d{2}$/.test(s.from || "") && /^\d{2}:\d{2}$/.test(s.to || "") ? s.date + " " + s.from + "~" + s.to : s.date);
+}
 
 /* ── 밴드 상태 ── */
 let BANDS = [], B = "", KEY = "", BD = null, SCHEDS = [], SONGS = [], SESS = [];
@@ -425,7 +431,9 @@ async function openBand(bid, pin){
     SONGS = s.docs.map(d => Object.assign({ id: d.id }, d.data())); if (tab === "song" || tab === "hist") renderAll();
   }));
   bandUnsub.push(dataRef().collection("sessions").onSnapshot(s => {
-    SESS = s.docs.map(d => Object.assign({ id: d.id }, d.data())); if (tab === "hist") renderAll();
+    SESS = s.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    if (tab === "hist") renderAll();
+    else if (M && ST.meet) paintSheet();                         // '예정' 합주가 표·달력의 📌 로 보인다
   }));
   renderAll(); setUrl();
 }
