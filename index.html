@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-09-30h">
+<link rel="stylesheet" href="../when/ui.css?v=2026-09-30i">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -69,6 +69,9 @@ a.lnk::before{content:"▶";font-size:9px}
 .cfg-h{font-size:15px;font-weight:800;letter-spacing:-.02em;margin:18px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
 #ts_schedSec .cfg-h{margin-top:12px}
 #bs_members .li{padding:1px 0}
+#meChips .chip.off{opacity:.45}
+#bs_members .btn.mv{min-width:34px;padding:4px 6px}
+#bs_members .btn.mv:disabled{opacity:.25}
 #bs_members .btn.sm{min-height:36px;padding:4px 10px}
 .cfg-danger{margin-top:18px;border-top:1px solid var(--line);padding-top:10px}
 .cfg-danger summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);list-style:revert}
@@ -230,6 +233,11 @@ a.lnk::before{content:"▶";font-size:9px}
       <button class="btn soft wide" id="ts_dates" type="button" style="margin:2px 0 12px">📅 후보 날짜 · 시간대 고르기</button>
       <label class="fld"><span>시간표 이름</span>
         <div class="row nowrap"><input type="text" id="ts_name" maxlength="60" style="flex:1 1 auto"><button class="btn" id="ts_nameSave" type="button">저장</button></div></label>
+      <!-- 이 시간표에 참여하는 멤버 — 녹색 = 참여, 흰색 = 빠짐 (2026-09-30 Benny: "싱크룸은 3명이서만") -->
+      <div class="fld"><span id="ts_partHead">참여 멤버</span>
+        <div class="chips" id="ts_part"></div>
+        <p class="hint" style="margin:6px 0 0;font-size:12px">녹색 = 참여 · 흰색 = 빠짐. 빠진 멤버는 이 시간표의 표·달력·결과에서만 안 보이고, 넣어 둔 입력은 그대로 남아요.</p>
+      </div>
     </div>
 
     <h3 class="cfg-h">🎸 밴드</h3>
@@ -328,8 +336,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-09-30h"></script>
-<script src="../when/sched.js?v=2026-09-30h"></script>
+<script src="../when/core.js?v=2026-09-30i"></script>
+<script src="../when/sched.js?v=2026-09-30i"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -338,9 +346,10 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-09-30h";
+const BUILD = "2026-09-30i";
 
 /* ── sched.js 에 알려 줄 것 ── */
+function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
 const SCHED_KEEP_ME = true;                                   // 밴드 멤버를 시간표에 뒤늦게 채운다
 function SCHED_COL(){ return db.collection("bandData").doc(KEY).collection("scheds"); }
 function SCHED_ME_KEY(){ return "bm_me:" + B; }                // 이름은 밴드 단위로 기억
@@ -482,7 +491,7 @@ function syncMembers(){
   /* ⚠️ 화면의 ST 는 지난 화면 캐시일 수 있다 → **서버에서 막 받은 것(buildST)** 으로만 맞춘다 */
   if (!M || !BD || !KEY || live.id !== M || !live.done || live.meetState !== "ok" || live.peopleCache) return;
   const cur = buildST(); if (!cur.meet) return;
-  const have = cur.members;
+  const have = Object.keys(cur.pid);                              // 이 시간표에서 뺀 사람(off)도 문서는 있다 → 다시 넣지 않게
   bmMembers().filter(n => !have.includes(n) && !syncTried.has(KEY + M + "|" + n)).forEach(n => {
     syncTried.add(KEY + M + "|" + n);
     api({ action:"member_add", m: M, name: n }).catch(() => {});
@@ -588,7 +597,8 @@ function renderMe(){
   const box = $("#meChips"); box.innerHTML = "";
   bmMembers().forEach(n => {
     const c = document.createElement("button");
-    c.type = "button"; c.className = "chip"; c.textContent = n;
+    c.type = "button"; c.className = "chip" + (isOff(n) ? " off" : ""); c.textContent = n;
+    if (isOff(n)) c.title = "이 시간표에는 참여하지 않아요";
     c.setAttribute("aria-pressed", String(n === me));
     c.onclick = () => { me = n; saveMe(n); meOpen = false; loadMine(true); renderAll(); };
     box.appendChild(c);
@@ -1016,16 +1026,32 @@ function renderBandSet(){
 function renderBsMembers(){
   $("#bs_memHead").textContent = "멤버 " + bmMembers().length + "명";
   const box = $("#bs_members"); box.innerHTML = "";
-  bmMembers().forEach(n => {
+  const list = bmMembers();
+  list.forEach((n, i) => {
     const row = document.createElement("div"); row.className = "li";
     row.appendChild(Object.assign(document.createElement("span"), { className: "nm", textContent: n + (n === me ? " (나)" : "") }));
     const sp = document.createElement("span"); sp.style.flex = "1"; row.appendChild(sp);
-    const rn = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm", textContent: "이름변경" });
+    /* ▲▼ 순서 — 누구세요·표의 멤버 순서가 이걸 따른다 (2026-09-30 Benny: "멤버 순서도 바꿀 수 있게") */
+    const up = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm mv", textContent: "▲", title: "위로" });
+    const dn = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm mv", textContent: "▼", title: "아래로" });
+    up.disabled = i === 0; dn.disabled = i === list.length - 1;
+    up.onclick = () => moveMember(i, -1); dn.onclick = () => moveMember(i, 1);
+    const rn = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm", textContent: "수정" });
     rn.onclick = () => { const to = (prompt("새 이름", n) || "").trim(); if (to && to !== n) renameMember(n, to); };
-    const rm = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm danger", textContent: "빼기" });
+    const rm = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm danger", textContent: "삭제" });
     rm.onclick = () => { if (confirm(n + " 님을 밴드에서 뺍니다. 시간표에 넣은 것도 같이 지워져요.")) removeMember(n); };
-    row.append(rn, rm); box.appendChild(row);
+    row.append(up, dn, rn, rm); box.appendChild(row);
   });
+}
+/** 순서 바꾸기 — 밴드 멤버 배열 자체를 바꾼다 */
+function moveMember(i, dir){
+  const a = bmMembers().slice(), j = i + dir;
+  if (j < 0 || j >= a.length) return;
+  [a[i], a[j]] = [a[j], a[i]];
+  if (BD) BD.members = a;                                         // 바로 반영 (스냅샷이 곧 확정)
+  if (ST && Array.isArray(ST.members)){ const k = n => { const x = a.indexOf(n); return x < 0 ? 1e6 : x; }; ST.members.sort((p, q) => k(p) - k(q)); }
+  renderBsMembers(); renderAll();
+  dataRef().update({ members: a }).catch(e => setStatus("실패 — " + errText(e), "err"));
 }
 /** 이름 바꾸기 — 멤버 목록 · 모든 시간표 · 좋아요 · 세션 · 불참 까지 */
 async function renameMember(from, to){
@@ -1035,6 +1061,7 @@ async function renameMember(from, to){
     for (const s of SCHEDS){
       const ps = await SCHED_COL().doc(s.id).collection("people").where("name", "==", from).get();
       for (const d of ps.docs) await d.ref.update({ name: to });
+      if (Array.isArray(s.off) && s.off.includes(from)) await SCHED_COL().doc(s.id).update({ off: s.off.map(x => x === from ? to : x) });   // 이 시간표에서 뺀 사람 목록도
     }
     for (const s of SONGS){
       const up = {};
@@ -1134,6 +1161,7 @@ MODAL_OPEN.tSetModal = () => {
   $("#ts_schedSec").hidden = !(M && meet());                      // 시간표가 없으면 밴드 설정만
   $("#ts_reset").hidden = $("#ts_delete").hidden = !(M && meet());
   $("#ts_name").value = (meet() && meet().title) || "";
+  renderTsPart();
   renderBandSet();
 };
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
@@ -1149,6 +1177,29 @@ $("#tEdit").onclick = () => openModal("tSetModal");
 $("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
 $("#heatOpenBtn").onclick = () => openModal("heatModal");
 $("#ts_dates").onclick = () => openModal("calModal");
+/** 참여 멤버 칩 — 누르면 이 시간표에서 켜고 끈다 (밴드 멤버 목록은 그대로) */
+function renderTsPart(){
+  const box = $("#ts_part"); if (!box) return;
+  box.innerHTML = "";
+  const off = offList(), all = bmMembers();
+  $("#ts_partHead").textContent = "참여 멤버 " + all.filter(n => !off.includes(n)).length + " / " + all.length + "명";
+  all.forEach(n => {
+    const on = !off.includes(n);
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = (on ? "✓ " : "") + n;
+    b.setAttribute("aria-pressed", String(on));
+    b.onclick = () => {
+      const cur = offList();
+      const next = on ? cur.concat([n]) : cur.filter(x => x !== n);
+      if (all.filter(x => !next.includes(x)).length === 0){ setStatus("적어도 한 명은 참여해야 해요", "err"); return; }
+      act({ action:"meet_set", off: JSON.stringify(next) }, n + (on ? " 님을 이 시간표에서 뺐어요" : " 님을 이 시간표에 넣었어요"),
+          () => { if (ST.meet) ST.meet.off = next; });
+      if (ST.meet) ST.meet.off = next;
+      renderTsPart();
+    };
+    box.appendChild(b);
+  });
+}
 $("#ts_nameSave").onclick = () => {
   const t = $("#ts_name").value.trim(); if (!t) return;
   act({ action:"meet_set", title: t }, "시간표 이름 저장됨", () => { if (ST.meet) ST.meet.title = t; });
