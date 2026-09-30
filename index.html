@@ -70,6 +70,10 @@ a.lnk::before{content:"▶";font-size:9px}
 #ts_schedSec .cfg-h{margin-top:12px}
 #bs_members .li{padding:1px 0}
 #meChips .chip.off{opacity:.45}
+#bs_members .pt{appearance:none;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);
+  background:var(--card);color:var(--on-accent);font:inherit;font-size:14px;font-weight:800;cursor:pointer;margin-right:2px;padding:0}
+#bs_members .pt[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}
+#bs_members .li.offrow .nm{color:var(--muted);font-weight:500}
 #bs_members .btn.mv{min-width:34px;padding:4px 6px}
 #bs_members .btn.mv:disabled{opacity:.25}
 #bs_members .btn.sm{min-height:36px;padding:4px 10px}
@@ -228,28 +232,26 @@ a.lnk::before{content:"▶";font-size:9px}
       <button class="btn ghost" type="button" data-close>닫기</button>
     </div>
 
+    <!-- 2026-09-30 Benny: "설정 누르면 두 시간표가 다 보이고 선택 → 수정" · "참여 멤버랑 멤버 관리를 합치자" -->
     <div id="ts_schedSec">
-      <h3 class="cfg-h">🗓️ 이 시간표</h3>
-      <button class="btn soft wide" id="ts_dates" type="button" style="margin:2px 0 12px">📅 후보 날짜 · 시간대 고르기</button>
+      <h3 class="cfg-h">🗓️ 시간표</h3>
+      <div class="chips" id="ts_tabs" style="margin:0 0 10px"></div>
+      <button class="btn soft wide" id="ts_dates" type="button" style="margin:0 0 12px">📅 후보 날짜 · 시간대 고르기</button>
       <label class="fld"><span>시간표 이름</span>
         <div class="row nowrap"><input type="text" id="ts_name" maxlength="60" style="flex:1 1 auto"><button class="btn" id="ts_nameSave" type="button">저장</button></div></label>
-      <!-- 이 시간표에 참여하는 멤버 — 녹색 = 참여, 흰색 = 빠짐 (2026-09-30 Benny: "싱크룸은 3명이서만") -->
-      <div class="fld"><span id="ts_partHead">참여 멤버</span>
-        <div class="chips" id="ts_part"></div>
-        <p class="hint" style="margin:6px 0 0;font-size:12px">녹색 = 참여 · 흰색 = 빠짐. 빠진 멤버는 이 시간표의 표·달력·결과에서만 안 보이고, 넣어 둔 입력은 그대로 남아요.</p>
-      </div>
+    </div>
+
+    <h3 class="cfg-h">👥 멤버</h3>
+    <p class="hint" id="bs_memHead" style="margin:0 0 4px;font-size:12.5px"></p>
+    <div class="list" id="bs_members"></div>
+    <div class="row nowrap" style="margin-top:8px">
+      <input type="text" id="bs_memIn" maxlength="30" placeholder="새 멤버 이름" style="flex:1 1 auto">
+      <button class="btn" id="bs_memAdd" type="button">추가</button>
     </div>
 
     <h3 class="cfg-h">🎸 밴드</h3>
     <label class="fld"><span>밴드 이름</span>
       <div class="row nowrap"><input type="text" id="bs_name" maxlength="30" style="flex:1 1 auto"><button class="btn" id="bs_nameSave" type="button">저장</button></div></label>
-    <div class="fld"><span id="bs_memHead">멤버</span>
-      <div class="list" id="bs_members"></div>
-      <div class="row nowrap" style="margin-top:8px">
-        <input type="text" id="bs_memIn" maxlength="30" placeholder="새 멤버 이름" style="flex:1 1 auto">
-        <button class="btn" id="bs_memAdd" type="button">추가</button>
-      </div>
-    </div>
     <div class="fld"><span>PIN</span>
       <p class="hint" id="bs_pinState" style="margin:0 0 8px"></p>
       <div class="row nowrap">
@@ -346,7 +348,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-09-30i";
+const BUILD = "2026-09-30j";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -582,6 +584,7 @@ function renderAll(){
     $("#heatOpenBtn").hidden = !dates().length;
     renderSched();
     syncMembers();
+    if (!$("#tSetModal").hidden) refreshSetModal();               // 설정 창에서 시간표를 바꾸면 불러온 뒤 다시 그린다
   }
   if (tab === "song") renderSongs();
   if (tab === "hist") renderHist();
@@ -1024,11 +1027,22 @@ function renderBandSet(){
 }
 /** 멤버 목록만 다시 (추가·빼기가 스냅샷으로 들어올 때 — 입력 중인 PIN·이름 칸은 건드리지 않게) */
 function renderBsMembers(){
-  $("#bs_memHead").textContent = "멤버 " + bmMembers().length + "명";
   const box = $("#bs_members"); box.innerHTML = "";
-  const list = bmMembers();
+  const list = bmMembers(), on = !!(M && meet()), off = on ? offList() : [];
+  $("#bs_memHead").textContent = on
+    ? "✓ = ‘" + (meet().title || "시간표") + "’ 참여 " + list.filter(n => !off.includes(n)).length + " / " + list.length + "명 · 눌러서 켜고 끄기 (꺼도 입력은 남아요)"
+    : "밴드 멤버 " + list.length + "명";
   list.forEach((n, i) => {
-    const row = document.createElement("div"); row.className = "li";
+    const row = document.createElement("div"); row.className = "li" + (off.includes(n) ? " offrow" : "");
+    if (on){
+      /* 고른 시간표에 참여 — 켜고 끄기 (예전 '참여 멤버' 칩을 멤버 줄에 합침) */
+      const inN = !off.includes(n);
+      const pt = Object.assign(document.createElement("button"), { type: "button", className: "pt", textContent: inN ? "✓" : "" });
+      pt.setAttribute("aria-pressed", String(inN));
+      pt.title = inN ? "이 시간표에서 빼기" : "이 시간표에 넣기";
+      pt.onclick = () => togglePart(n);
+      row.appendChild(pt);
+    }
     row.appendChild(Object.assign(document.createElement("span"), { className: "nm", textContent: n + (n === me ? " (나)" : "") }));
     const sp = document.createElement("span"); sp.style.flex = "1"; row.appendChild(sp);
     /* ▲▼ 순서 — 누구세요·표의 멤버 순서가 이걸 따른다 (2026-09-30 Benny: "멤버 순서도 바꿀 수 있게") */
@@ -1157,13 +1171,7 @@ $("#bs_delete").onclick = async () => {
 
 /* ═══ 이벤트 ═══ */
 MODAL_OPEN.bandModal = () => renderBandList();
-MODAL_OPEN.tSetModal = () => {
-  $("#ts_schedSec").hidden = !(M && meet());                      // 시간표가 없으면 밴드 설정만
-  $("#ts_reset").hidden = $("#ts_delete").hidden = !(M && meet());
-  $("#ts_name").value = (meet() && meet().title) || "";
-  renderTsPart();
-  renderBandSet();
-};
+MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal(); };
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
@@ -1177,28 +1185,48 @@ $("#tEdit").onclick = () => openModal("tSetModal");
 $("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
 $("#heatOpenBtn").onclick = () => openModal("heatModal");
 $("#ts_dates").onclick = () => openModal("calModal");
-/** 참여 멤버 칩 — 누르면 이 시간표에서 켜고 끈다 (밴드 멤버 목록은 그대로) */
-function renderTsPart(){
-  const box = $("#ts_part"); if (!box) return;
+/** 설정 창 다시 그리기 — 고른 시간표가 바뀌면 이름 칸도 바꾼다 (입력 중엔 안 건드림) */
+let tsFor = null;
+function refreshSetModal(){
+  const on = !!(M && meet());
+  $("#ts_schedSec").hidden = !SCHEDS.length;                       // 시간표가 없으면 멤버·밴드만
+  renderTsTabs();
+  $("#ts_dates").disabled = !on;
+  $("#ts_reset").hidden = $("#ts_delete").hidden = !on;
+  if (on){
+    const t = meet().title || "시간표";
+    if (tsFor !== M){ $("#ts_name").value = t; tsFor = M; }
+    $("#ts_reset").textContent = "‘" + t + "’ 응답 전부 지우기";
+    $("#ts_delete").textContent = "‘" + t + "’ 시간표 지우기";
+  }
+  renderBsMembers();
+}
+/** 설정 창의 시간표 칩 — 누르면 그 시간표로 옮겨 가서 고친다 */
+function renderTsTabs(){
+  const box = $("#ts_tabs"); if (!box) return;
   box.innerHTML = "";
-  const off = offList(), all = bmMembers();
-  $("#ts_partHead").textContent = "참여 멤버 " + all.filter(n => !off.includes(n)).length + " / " + all.length + "명";
-  all.forEach(n => {
-    const on = !off.includes(n);
+  SCHEDS.forEach(s => {
     const b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.textContent = (on ? "✓ " : "") + n;
-    b.setAttribute("aria-pressed", String(on));
-    b.onclick = () => {
-      const cur = offList();
-      const next = on ? cur.concat([n]) : cur.filter(x => x !== n);
-      if (all.filter(x => !next.includes(x)).length === 0){ setStatus("적어도 한 명은 참여해야 해요", "err"); return; }
-      act({ action:"meet_set", off: JSON.stringify(next) }, n + (on ? " 님을 이 시간표에서 뺐어요" : " 님을 이 시간표에 넣었어요"),
-          () => { if (ST.meet) ST.meet.off = next; });
-      if (ST.meet) ST.meet.off = next;
-      renderTsPart();
-    };
+    b.type = "button"; b.className = "chip"; b.textContent = s.title || "시간표";
+    b.setAttribute("aria-pressed", String(s.id === M));
+    b.onclick = () => { if (s.id !== M){ openSched(s.id); tsFor = null; refreshSetModal(); } };
     box.appendChild(b);
   });
+  const add = document.createElement("button");
+  add.type = "button"; add.className = "chip add"; add.textContent = "＋ 시간표";
+  add.onclick = newSched;
+  box.appendChild(add);
+}
+/** 고른 시간표에 참여 켜고 끄기 (밴드 멤버 목록은 그대로) */
+function togglePart(n){
+  if (!(M && meet())) return;
+  const all = bmMembers(), cur = offList(), on = !cur.includes(n);
+  const next = on ? cur.concat([n]) : cur.filter(x => x !== n);
+  if (all.filter(x => !next.includes(x)).length === 0){ setStatus("적어도 한 명은 참여해야 해요", "err"); return; }
+  act({ action:"meet_set", off: JSON.stringify(next) }, n + (on ? " 님을 이 시간표에서 뺐어요" : " 님을 이 시간표에 넣었어요"),
+      () => { if (ST.meet) ST.meet.off = next; });
+  if (ST.meet) ST.meet.off = next;
+  renderBsMembers();
 }
 $("#ts_nameSave").onclick = () => {
   const t = $("#ts_name").value.trim(); if (!t) return;
