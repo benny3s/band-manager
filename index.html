@@ -203,6 +203,8 @@ a.lnk::before{content:"▶";font-size:9px}
       <button class="btn ghost" type="button" data-close>닫기</button>
     </div>
     <button class="btn primary" id="bandNewBtn" type="button" style="width:100%;margin-top:12px">＋ 새 밴드 만들기</button>
+    <!-- 다른 밴드에 앱 자체를 소개 — 우리 밴드 정보(?b=)는 안 붙인다 (2026-10-01 Benny) -->
+    <button class="btn soft" id="bandIntroBtn" type="button" style="width:100%;margin-top:8px">📣 다른 밴드에 밴드매니저 소개하기</button>
     <div class="list" id="bandList" style="margin-top:10px"></div>
   </div>
 </div>
@@ -348,7 +350,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-09-30j";
+const BUILD = "2026-10-01a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -1175,6 +1177,12 @@ MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal();
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
+$("#bandIntroBtn").onclick = async () => {
+  const u = location.origin + location.pathname;                 // 밴드·시간표 없이 첫 화면
+  const text = "밴드 합주 일정 취합 · 합주곡 · 진행 이력 — 새 밴드 만들어서 써보세요";
+  if (navigator.share){ try { await navigator.share({ title: "밴드매니저", text, url: u }); return; } catch(e){ if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; } }
+  try { await navigator.clipboard.writeText(text + "\n" + u); setStatus("소개 링크 복사됨 — 보내고 싶은 곳에 붙여넣으세요", "ok"); } catch(e){ prompt("이 주소를 공유하세요", u); }
+};
 $("#noneNew").onclick = () => openModal("bandNewModal");
 $("#titleBtn").onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); };
 $("#lockGo").onclick = () => { const p = $("#lockPin").value.trim(); if (!p) return; openBand(B, p); };
