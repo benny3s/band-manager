@@ -367,7 +367,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-02a";
+const BUILD = "2026-10-02b";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -962,8 +962,8 @@ function histCard(g, newOf, today){
   const top = document.createElement("div"); top.className = "spread";
   const t = Object.assign(document.createElement("div"), { className: "ttl", textContent: fmtLong(d) });
   if (!live.length) t.style.textDecoration = "line-through";
-  /* 시간표 📌 에서 넘어온 코멘트 — 직접 쓴 메모와 구분되게 작은 꼬리표로 (2026-10-01). 여럿이면 줄마다 */
-  if (!multi && g[0].fixNote) t.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + g[0].fixNote, title: "시간표에서 정할 때 단 코멘트" }));
+  /* 시간표 📌 코멘트는 **늘 회차 줄 맨 앞** — 회차가 하나여도 여럿이어도 같은 모양
+     (2026-10-01 Benny: "줄바꿈이 있다 없다 해서 보기 힘들어, 맨 위 것처럼 한 줄로") */
   const dd = d >= today && live.length ? Math.round((dObj(d) - dObj(today)) / 864e5) : null;
   const st = Object.assign(document.createElement("span"), {
     className: "pill " + (!live.length ? "warn" : dd !== null ? "go" : ""),
@@ -975,10 +975,10 @@ function histCard(g, newOf, today){
     if (h.from || h.to) bits.push((h.from || "") + (h.to ? "~" + h.to : ""));
     if (h.place) bits.push(h.place); if (h.room) bits.push(h.room);
     if ((h.songs || []).length) bits.push("곡 " + h.songs.length);
-    if (!bits.length && !(multi && h.fixNote)) return;
-    const m = document.createElement("div"); m.className = "meta" + (multi ? " mline" : "");
+    if (!bits.length && !h.fixNote) return;
+    const m = document.createElement("div"); m.className = "meta mline";
     if (h.status === "취소") m.style.textDecoration = "line-through";
-    if (multi && h.fixNote) m.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + h.fixNote }));
+    if (h.fixNote) m.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + h.fixNote, title: "시간표에서 정할 때 단 코멘트" }));
     m.appendChild(document.createTextNode(bits.join(" · ")));
     head.push(m);
   });
