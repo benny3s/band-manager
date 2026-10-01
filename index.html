@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01o">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-01p">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -67,8 +67,6 @@ a.lnk::before{content:"▶";font-size:9px}
   border-radius:999px;padding:2px 8px;vertical-align:2px;white-space:nowrap}
 .absline{font-size:13.5px}
 .absline .why{color:var(--muted)}
-#meCard .chips{margin-top:8px}
-#meCard.need{border-width:2px;border-color:rgba(var(--accent-rgb),.55)}
 .lockcard{text-align:center;padding:30px 18px}
 .lockcard input{max-width:180px;text-align:center;letter-spacing:.3em;margin:0 auto}
 .bandrow{display:flex;align-items:center;gap:8px}
@@ -136,24 +134,12 @@ a.lnk::before{content:"▶";font-size:9px}
     <button role="tab" id="tab-hist"  type="button" aria-selected="false">🎸 이력</button>
   </div>
 
-  <!-- ══ 누구세요 — 일정·합주곡·이력 **한 곳** (밴드 멤버 중에서, 밴드 단위로 기억)
-       (2026-10-01 Benny: "누구세요가 일정하고 합주곡/이력하고 따로 움직이는 것 같아")
-       sched.js 의 누구세요(#whoCard)는 숨기고 이것만 쓴다 ══ -->
-  <div class="card" id="meCard" hidden>
-    <div class="spread" id="meDone" hidden>
-      <span class="wholine"><span class="dot"></span><b id="meName"></b> 님</span>
-      <button class="btn ghost sm" id="meChange" type="button">바꾸기</button>
-    </div>
-    <div id="mePick">
-      <h2 style="margin:0">누구세요?</h2>
-      <p class="hint" style="margin:2px 0 0">이름을 고르면 일정·합주곡·이력 모두 그 이름으로 들어가요.</p>
-      <div class="chips" id="meChips"></div>
-    </div>
-  </div>
+  <!-- ══ 누구세요 — 일정·합주곡·이력 **한 곳**. 일정 화면의 카드(sched.js #whoCard)를 탭 위로 올려 같이 쓴다
+       (2026-10-01 Benny: "따로 움직이는 것 같아" → "일정에 있던 디자인이 더 좋았어") ══ -->
+  <div data-sched="who"></div>
 
   <!-- ══ 일정 — 약속 잡자와 같은 화면 (sched.js) ══ -->
   <div id="pane-sched">
-    <div data-sched="who" hidden></div>
     <div class="card" id="tCard">
       <div class="tchips" id="tChips"></div>
       <div class="spread">
@@ -349,8 +335,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01o"></script>
-<script src="../when/sched.js?v=2026-10-01o"></script>
+<script src="../when/core.js?v=2026-10-01p"></script>
+<script src="../when/sched.js?v=2026-10-01p"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -359,7 +345,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01o";
+const BUILD = "2026-10-01p";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -599,15 +585,14 @@ function renderAll(){
     $("#tab-" + k).setAttribute("aria-selected", String(tab === k));
     $("#pane-" + k).hidden = tab !== k;
   });
-  $("#meCard").hidden = false;
-  renderMe();
+  $("#whoCard").hidden = false;
+  if (tab !== "sched") renderWho();                                // 일정 탭은 renderSched 가 그린다
 
   if (tab === "sched"){
     renderTChips();
     const on = !!(M && meet());
     $("#tNone").hidden = !!SCHEDS.length;
     $("#tCard").hidden = !SCHEDS.length;
-    $("#whoCard").hidden = true;                                   // 누구세요는 위 #meCard 하나로
     if (!on){ $("#sheetCard").hidden = true; $("#emptyCard").hidden = true; $("#mTitle").textContent = M ? "불러오는 중…" : ""; return; }
     const m = meet();
     $("#mTitle").textContent = m.title || "시간표";
@@ -625,25 +610,8 @@ function renderAll(){
 }
 function setTab(t){ tab = t; ls("bm_tab", t); renderAll(); window.scrollTo(0, 0); }
 
-/* 합주곡·이력 탭의 '누구세요' — 밴드 멤버 중에서 */
-let meOpen = false;
-function renderMe(){
-  $("#meCard").classList.toggle("need", !me);
-  $("#meDone").hidden = !me || meOpen;
-  $("#mePick").hidden = !!me && !meOpen;
-  $("#meName").textContent = me;
-  const box = $("#meChips"); box.innerHTML = "";
-  bmMembers().forEach(n => {
-    const c = document.createElement("button");
-    c.type = "button"; c.className = "chip" + (isOff(n) ? " off" : ""); c.textContent = n;
-    if (isOff(n)) c.title = "이 시간표에는 참여하지 않아요";
-    c.setAttribute("aria-pressed", String(n === me));
-    /* 시간표가 열려 있으면 일정 쪽 고르기(pickMe)를 그대로 — 시간표 명단에 없으면 넣어 준다 */
-    c.onclick = () => { meOpen = false; if (M && meet()) pickMe(n); else { me = n; saveMe(n); renderAll(); } };
-    box.appendChild(c);
-  });
-  if (!bmMembers().length) box.innerHTML = '<span class="hint" style="margin:0">⚙ 설정 → 밴드 설정에서 멤버를 넣어주세요.</span>';
-}
+/* sched.js 훅 — 누구세요 칩 = **밴드 멤버** (시간표에만 있는 이름도 뒤에) */
+function whoMembers(){ return Array.from(new Set(bmMembers().concat(members()))); }
 
 /* ═══ 합주곡 ═══ */
 /* 세 갈래: 합주곡(맞추는 곡) · 투표곡(고르는 중) · 보류. 저장 값은 옛것 그대로(연습중/후보/보류) */
@@ -803,7 +771,7 @@ function songCard(s){
 }
 const songRef = id => dataRef().collection("songs").doc(id);
 function vote(s, val){
-  if (!me){ setStatus("위에서 이름을 먼저 골라주세요", "err"); $("#meCard").scrollIntoView({ behavior:"smooth", block:"center" }); return; }
+  if (!me){ setStatus("위에서 이름을 먼저 골라주세요", "err"); whoOpen = true; renderWho(); $("#whoCard").scrollIntoView({ behavior:"smooth", block:"center" }); return; }
   songRef(s.id).update(new FP("votes", me), val === null ? FV.delete() : val).catch(e => setStatus("투표 실패 — " + errText(e), "err"));
 }
 
@@ -1311,9 +1279,7 @@ $("#ts_delete").onclick = async () => {
   try { const id = M; M = ""; ST = { meet:null }; unwatch(); await api({ action:"meet_remove", m: id }); setStatus("지웠어요", "ok"); showNew(); }
   catch(e){ setStatus("실패 — " + e.message, "err"); }
 };
-$("#meChange").onclick = () => { meOpen = !meOpen; renderMe(); };
-/* sched.js 훅 — 이름 없이 칸을 누르면 위 누구세요를 펼친다 */
-function onAskName(){ meOpen = true; renderMe(); $("#meCard").scrollIntoView({ behavior:"smooth", block:"center" }); }
+
 /* 공유 = 휴대폰 기본 공유창, PC·안 되면 복사 */
 $("#bShare").onclick = async () => {
   const b = bandOf(B); const u = location.origin + location.pathname + "?b=" + B + (M ? "&t=" + M : "");
