@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01p">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-01t">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -335,8 +335,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01p"></script>
-<script src="../when/sched.js?v=2026-10-01p"></script>
+<script src="../when/core.js?v=2026-10-01t"></script>
+<script src="../when/sched.js?v=2026-10-01t"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -345,7 +345,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01p";
+const BUILD = "2026-10-01t";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -356,7 +356,9 @@ function SCHED_NS(){ return "bm:" + KEY.slice(0, 16); }         // 지난 화면
 /* 이력의 '예정' 합주도 표·달력에 📌 로 (2026-09-30 Benny: "10/4 합주가 잡혀있는데 달력에는 표시가 안되어있어")
    이력에 직접 넣은 합주는 📌 정한 것(fixed)에 없어서 안 보였다. 표시만 하고 fixed 는 건드리지 않는다 */
 function extraFixes(){
-  return SESS.filter(s => s.status === "예정" && /^\d{4}-\d{2}-\d{2}$/.test(s.date || ""))
+  /* 이 시간표가 📌 로 만든 회차(auto = 이 시간표)는 빼다 — 그건 fixes() 가 이미 보여 주고,
+     📌 해제 직후 지워지는 중인 회차가 '이력 확정' 으로 잠깐 보이는 걸 막는다 (2026-10-01 검토) */
+  return SESS.filter(s => s.status === "예정" && /^\d{4}-\d{2}-\d{2}$/.test(s.date || "") && !(M && s.auto && s.auto.indexOf(M + "|") === 0))
     .map(s => /^\d{2}:\d{2}$/.test(s.from || "") && /^\d{2}:\d{2}$/.test(s.to || "") ? s.date + " " + s.from + "~" + s.to : s.date);
 }
 
@@ -451,7 +453,7 @@ async function openBand(bid, pin){
   bandUnsub.push(dataRef().collection("sessions").onSnapshot(s => {
     SESS = s.docs.map(d => Object.assign({ id: d.id }, d.data()));
     if (tab === "hist") renderAll();
-    else if (M && ST.meet) paintSheet();                         // '예정' 합주가 표·달력의 📌 로 보인다
+    else if (M && ST.meet){ paintSheet(); if (!$("#dayModal").hidden) renderDm(); }   // '예정' 합주가 표·달력·날짜 창의 📌 로 보인다
   }));
   renderAll(); setUrl();
 }
@@ -521,6 +523,15 @@ function renderTChips(){
 function sessKey(s){ return /^\d{2}:\d{2}$/.test(s.from || "") && /^\d{2}:\d{2}$/.test(s.to || "") ? s.date + " " + s.from + "~" + s.to : s.date; }
 /** sched.js 훅 — 시간표 창에서 이력에만 있는 📌('예정' 회차)을 해제·삭제할 때. 그 회차를 지운다 (묻고)
     (2026-10-01 Benny: "이력 버튼도 누르고 해제할 수 있게, 삭제 버튼도 옆에") */
+/** sched.js 훅 — 이력 '예정' 회차에서 온 📌 의 코멘트·출처.
+    다른 시간표가 만든 회차(auto = 그 시간표)는 그 시간표 이름을 달고 여기선 못 고친다 */
+function extraSess(t){ return SESS.find(s => s.status === "예정" && sessKey(s) === t) || null; }
+function extraFixNote(t){ const s = extraSess(t); return s ? s.fixNote || "" : ""; }
+function extraFixInfo(t){
+  const s = extraSess(t); if (!s || !s.auto || s.auto.indexOf(M + "|") === 0) return { src: "이력", lock: false };
+  const sid = s.auto.split("|")[0], sc = SCHEDS.find(x => x.id === sid);
+  return { src: sc ? sc.title || "다른 시간표" : "다른 시간표", lock: true };
+}
 function releaseExtraFix(t){
   const hit = SESS.filter(s => s.status === "예정" && sessKey(s) === t);
   if (!hit.length) return true;
@@ -545,16 +556,18 @@ function onFixesChanged(before, after, notes){
   after.filter(t => before.indexOf(t) < 0).forEach(t => {
     const p = pickParse(t); if (!p) return;
     if (SESS.some(s => s.auto === tag(t))) return;
-    const last = lastSess();
     const absent = [];
     members().forEach(n => {
       const v = (hoursOf()[n] || {})[p.d];
       if (Array.isArray(v) && !v.length) absent.push(fmtAbs(n, (notesOf()[n] || {})[p.d] || ""));
     });
+    /* 장소는 **합주일 때만** 직전 회차에서 — 싱크룸(온라인)·청모·회식에 합주실이 붙지 않게 (2026-10-01 검토에서 발견) */
+    const jam = !notes[t] || /합주/.test(notes[t]);
+    const lp = jam ? SESS.filter(s => s.place && (!s.fixNote || /합주/.test(s.fixNote))).sort((a, b) => (a.date < b.date ? 1 : -1))[0] : null;
     dataRef().collection("sessions").doc(newId("h")).set({
-      date: p.d, from: hh(p.from), to: hh(p.to), place: last ? last.place : "", room: last ? last.room : "",
+      date: p.d, from: hh(p.from), to: hh(p.to), place: lp ? lp.place : "", room: lp ? lp.room : "",
       status: "예정", absent, songs: [], memo: "", fixNote: notes[t] || "", added: todayIso(), auto: tag(t)
-    }).then(() => setStatus("🎸 이력에 " + fmtFull(p.d) + " 합주를 넣었어요", "ok")).catch(e => setStatus("이력에 못 넣었어요 — " + errText(e), "err"));
+    }).then(() => setStatus("🎸 이력에 " + fmtFull(p.d) + " " + (notes[t] || "합주") + " 넣었어요", "ok")).catch(e => setStatus("이력에 못 넣었어요 — " + errText(e), "err"));
   });
   before.filter(t => after.indexOf(t) < 0).forEach(t => {
     SESS.filter(s => s.auto === tag(t) && s.status === "예정").forEach(s => dataRef().collection("sessions").doc(s.id).delete().catch(() => {}));
@@ -611,6 +624,7 @@ function renderAll(){
 function setTab(t){ tab = t; ls("bm_tab", t); renderAll(); window.scrollTo(0, 0); }
 
 /* sched.js 훅 — 누구세요 칩 = **밴드 멤버** (시간표에만 있는 이름도 뒤에) */
+function schedActive(){ return tab === "sched"; }              // sched.js 훅 — 흐린 칩은 일정 탭에서만
 function whoMembers(){ return Array.from(new Set(bmMembers().concat(members()))); }
 
 /* ═══ 합주곡 ═══ */
@@ -988,7 +1002,7 @@ function openHistForm(h){
   histEditing = h || null;
   const last = lastSess();
   $("#hf_head").textContent = h ? "회차 수정" : "회차 추가";
-  $("#h_date").value = h ? h.date : ""; $("#h_from").value = h ? h.from : "10:00"; $("#h_to").value = h ? h.to : "12:00";
+  $("#h_date").value = h ? h.date : ""; $("#h_from").value = h ? h.from : "10:00"; $("#h_to").value = h ? toField(h.to) : "12:00";
   $("#h_place").value = h ? h.place : (last ? last.place : ""); $("#h_room").value = h ? h.room : (last ? last.room : "");
   $("#h_memo").value = h ? h.memo : "";
   hStatus = h ? h.status : "예정";
@@ -1009,20 +1023,54 @@ $("#h_copyPrev").onclick = () => {
   if (!prev){ setStatus("직전 회차가 없어요", "err"); return; }
   hSongs = new Set(prev.songs || []); renderHistPickers();
 };
+/* ═══ 이력 → 시간표 📌 맞추기 (2026-10-01 검토: "일정에서 추가한 거랑 이력에서 추가한 거 연동되는지")
+   📌 로 만든 회차(auto = "시간표id|열쇠")를 이력에서 고치면 그 시간표의 📌 도 같이:
+   · 날짜·시간을 바꾸면 → 📌 를 새 시간으로 옮긴다(코멘트도). 정시가 아니면(22:30 등) 📌 로 못 두니 연결을 끊는다
+   · 취소로 바꾸면 → 📌 해제(후보로 남김) · 회차를 지우면 → 📌 도 지운다 ═══ */
+function autoOf(h){ const i = (h.auto || "").indexOf("|"); return i < 0 ? null : { sid: h.auto.slice(0, i), key: h.auto.slice(i + 1) }; }
+async function syncSchedFix(a, mode, newKey){
+  const ref = dataRef().collection("scheds").doc(a.sid);
+  const snap = await ref.get(); if (!snap.exists) return;
+  const m = snap.data();
+  const list = String(m.fixed || "").split(/\s*,\s*/).filter(t => t && t !== a.key);
+  const notes = Object.assign({}, m.fixNotes || {}), note = notes[a.key] || "";
+  delete notes[a.key];
+  let picks = (m.picks || []).slice();
+  if (mode === "move"){ list.push(newKey); if (note) notes[newKey] = note; }
+  if (mode === "pick" && picks.length < 20){ picks = Array.from(new Set(picks.concat([a.key]))).sort(); if (note) notes[a.key] = note; }
+  await ref.update({ fixed: Array.from(new Set(list)).sort().join(", "), fixNotes: notes, picks, updatedAt: FV.serverTimestamp() });
+}
+/* 시간 칸(type=time)은 24:00 을 못 담는다 → 칸에는 00:00, 저장할 때 끝이 00:00 이면 24:00 (싱크룸 22–24) */
+function toField(v){ return v === "24:00" ? "00:00" : (v || ""); }
+function fromField(from, to){ return to === "00:00" && from && from !== "00:00" ? "24:00" : to; }
 $("#h_save").onclick = () => {
-  const p = { date: $("#h_date").value, from: $("#h_from").value, to: $("#h_to").value,
+  const p = { date: $("#h_date").value, from: $("#h_from").value, to: fromField($("#h_from").value, $("#h_to").value),
               place: $("#h_place").value.trim(), room: $("#h_room").value.trim(), status: hStatus,
               memo: $("#h_memo").value.trim(), absent: Array.from(hAbsent).map(([n, w]) => fmtAbs(n, w)), songs: Array.from(hSongs) };
   if (!p.date){ setStatus("날짜를 골라주세요", "err"); return; }
+  const a = histEditing ? autoOf(histEditing) : null;
+  let sync = null;
+  if (a){
+    const nk = p.date + " " + p.from + "~" + p.to;
+    if (p.status === "취소"){ p.auto = ""; sync = () => syncSchedFix(a, "pick"); }
+    else if (nk !== a.key){
+      if (/^\d{2}:00$/.test(p.from) && /^\d{2}:00$/.test(p.to) && p.to > p.from){ p.auto = a.sid + "|" + nk; sync = () => syncSchedFix(a, "move", nk); }
+      else { p.auto = ""; sync = () => syncSchedFix(a, "drop"); }
+    }
+  }
   const w = histEditing ? sessRef(histEditing.id).update(p) : sessRef(newId("h")).set(Object.assign(p, { added: todayIso(), auto: "" }));
   closeModal("histModal");
-  w.then(() => setStatus(fmtFull(p.date) + " 회차 저장됨", "ok")).catch(e => setStatus("저장 실패 — " + errText(e), "err"));
+  w.then(() => sync && sync())
+   .then(() => setStatus(fmtFull(p.date) + " 회차 저장됨" + (sync ? " — 시간표 📌 도 맞췄어요" : ""), "ok"))
+   .catch(e => setStatus("저장 실패 — " + errText(e), "err"));
 };
 $("#h_delete").onclick = () => {
   const h = histEditing; if (!h) return;
-  if (!confirm(fmtFull(h.date) + " 회차를 지울까요?")) return;
+  const a = autoOf(h);
+  if (!confirm(fmtFull(h.date) + " 회차를 지울까요?" + (a ? "\n시간표의 📌 도 같이 지워져요." : ""))) return;
   closeModal("histModal");
-  sessRef(h.id).delete().then(() => setStatus("회차 삭제됨", "ok")).catch(e => setStatus("실패 — " + errText(e), "err"));
+  sessRef(h.id).delete().then(() => a && syncSchedFix(a, "drop"))
+    .then(() => setStatus("회차 삭제됨", "ok")).catch(e => setStatus("실패 — " + errText(e), "err"));
 };
 
 /* ═══ 밴드 만들기 · 설정 ═══ */
