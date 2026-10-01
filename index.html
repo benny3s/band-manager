@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01zc">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-02a">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -59,6 +59,7 @@ a.lnk::before{content:"▶";font-size:9px}
 .sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .sessrow .sn{flex:0 0 84px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sessrow input{flex:1 1 auto;min-width:0}
+.fixedline.linkline{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;padding:0;font:inherit;font-weight:700;cursor:pointer}
 /* 밴드 목록 줄 — 이름 + (내 밴드만) ✕ · 지금 보는 '밴드' (공용 css 는 '약속') */
 .pkrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
 .pkrow:last-child{border-bottom:0}
@@ -152,7 +153,8 @@ a.lnk::before{content:"▶";font-size:9px}
         <h2 id="mTitle" class="bigtitle" style="margin:0"></h2>
         <p class="hint" id="mSub" style="margin:3px 0 0"></p>
       </div>
-      <p class="fixedline" id="mFixed" hidden></p>
+      <!-- 📌 줄을 누르면 일정 확정 창 (모두 보기 옆 버튼은 '📅 날짜 관리' — 2026-10-01 Benny) -->
+      <button class="fixedline linkline" id="mFixed" type="button" hidden></button>
       <!-- 버튼은 두 개만 — 공유 · 밴드 설정 (2026-10-01 Benny: "링크 공유 오른쪽에 밴드 설정, 깔끔하게 2개로") -->
       <div class="sheettools">
         <button class="btn soft" id="bShare" type="button">🔗 멤버에게 공유</button>
@@ -355,8 +357,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01zc"></script>
-<script src="../when/sched.js?v=2026-10-01zc"></script>
+<script src="../when/core.js?v=2026-10-02a"></script>
+<script src="../when/sched.js?v=2026-10-02a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -365,7 +367,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01zc";
+const BUILD = "2026-10-02a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -667,8 +669,8 @@ function renderAll(){
     $("#mTitle").textContent = m.title || "시간표";
     $("#mSub").textContent = (dates().length ? fmtFull(dates()[0]) + " ~ " + fmtFull(dates()[dates().length-1]) : "날짜 미정") +
       " · " + responders().length + " / " + members().length + "명 응답";
-    $("#mFixed").hidden = !m.fixed;
-    $("#mFixed").textContent = m.fixed ? fixedLine(m.fixed) : "";
+    $("#mFixed").hidden = !dates().length;
+    $("#mFixed").textContent = (m.fixed ? fixedLine(m.fixed) : "📌 아직 정한 날이 없어요 — 눌러서 일정 확정") + "  ›";
     $("#segFix").hidden = !dates().length;                         // '결과 보기' 대신 모두 보기 옆 '📌 일정 확정'
     renderSched();
     syncMembers();
@@ -1321,7 +1323,12 @@ $("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lock
 $("#tNew0").onclick = newSched;
 $("#tEdit").onclick = () => openModal("tSetModal");
 $("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
-/* 결과 창 = '📌 일정 확정' — 직접 고르기(표)를 위로, 후보 목록은 아래로 (2026-10-01 Benny: "후보가 너무 많다") */
+/* 결과 창 = '📌 일정 확정' — 직접 고르기(표)를 위로, 후보 목록은 아래로 (2026-10-01 Benny: "후보가 너무 많다")
+   여는 곳은 시간표 카드의 📌 줄. 모두 보기 옆 버튼은 '📅 날짜 관리'(날짜 넣고 빼기·요일별 시간) */
+$("#mFixed").onclick = () => openModal("heatModal");
+$("#segFix").textContent = "📅 날짜 관리";
+$("#segFix").onclick = () => openModal("calModal");
+$("#calModal h2").textContent = "📅 날짜 관리";
 (function(){
   const body = $("#heatModal .sbody"), pc = $("#picksCard");
   $("#heatModal h2").textContent = "📌 일정 확정";
