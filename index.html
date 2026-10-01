@@ -217,7 +217,11 @@ a.lnk::before{content:"▶";font-size:9px}
   <div class="sheet tall" role="dialog" aria-modal="true">
     <div class="spread">
       <h2 style="margin:0">밴드 고르기</h2>
-      <button class="btn ghost" type="button" data-close>닫기</button>
+      <!-- 🏠 홈으로 = 밴드에서 나와 처음 화면(샘플) — 닫기 왼쪽 (2026-10-02 Benny) -->
+      <span class="row tight" style="flex:0 0 auto;gap:6px">
+        <button class="btn sm" id="bandHomeBtn" type="button">🏠 홈으로</button>
+        <button class="btn ghost" type="button" data-close>닫기</button>
+      </span>
     </div>
     <!-- 버튼 셋 + 이 기기에서 들어간 '내 밴드' — 전체 목록은 가운데 버튼을 눌러야 (2026-10-01 Benny) -->
     <button class="btn primary" id="bandNewBtn" type="button" style="width:100%;margin-top:12px">＋ 새 밴드 만들기</button>
@@ -383,7 +387,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-02d";
+const BUILD = "2026-10-02e";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -453,7 +457,7 @@ function mineForget(bid){
   ls("bm_mine", JSON.stringify(mineIds().filter(x => x !== bid)));
   ["bm_key:", "bm_me:", "bm_t:"].forEach(k => ls(k + bid, ""));
   if (ls("bm_last") === bid) ls("bm_last", "");
-  if (bid === B){ closeModal("bandModal"); closeBand(); setUrl(); renderAll(); }
+  if (bid === B){ closeModal("bandModal"); afterNav(goHome); }
   else renderBandList();
 }
 function bandRow(b, onDel){
@@ -1334,7 +1338,7 @@ $("#bs_delete").onclick = async () => {
 };
 
 /* ═══ 이벤트 ═══ */
-MODAL_OPEN.bandModal = () => renderBandList();
+MODAL_OPEN.bandModal = () => { $("#bandHomeBtn").hidden = !B; renderBandList(); };
 MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal(); };
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
@@ -1345,7 +1349,23 @@ $("#bandIntroBtn").onclick = async () => {
   await shareLine("밴드매니저 - 합주 일정·합주곡·이력 " + u, "소개 링크 복사됨 — 보내고 싶은 곳에 붙여넣으세요");
 };
 $("#noneNew").onclick = () => openModal("bandNewModal");
-$("#titleBtn").onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); };
+/* 맨 위 '밴드매니저' = 지금 밴드·탭 그대로 **새로고침** (새 버전·최신 내용) — 처음 화면은 밴드 고르기의 🏠 홈으로 (2026-10-02 Benny) */
+$("#titleBtn").onclick = () => {
+  if (dirty && !confirm("저장하지 않은 표시가 있습니다. 그래도 새로고침할까요?")) return;
+  try { sessionStorage.setItem("bm_tab_once", tab); } catch(e){}
+  location.reload();
+};
+/** 창을 닫으면 뒤로가기(history.back)가 한 번 일어난다 → 그게 끝난 뒤에 주소를 바꿔야 옛 주소(?b=)로 안 돌아간다 */
+function afterNav(fn){
+  let done = false;
+  const go = () => { if (done) return; done = true; window.removeEventListener("popstate", go); setTimeout(fn, 0); };
+  window.addEventListener("popstate", go); setTimeout(go, 400);
+}
+function goHome(){ closeBand(); ls("bm_last", ""); setUrl(); renderAll(); window.scrollTo(0, 0); }
+$("#bandHomeBtn").onclick = () => {
+  if (dirty && !confirm("저장하지 않은 표시가 있습니다. 그래도 나갈까요?")) return;
+  closeModal("bandModal"); afterNav(goHome);
+};
 $("#lockGo").onclick = () => { const p = $("#lockPin").value.trim(); if (!p) return; openBand(B, p); };
 $("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lockGo").click(); });
 ["sched", "song", "hist"].forEach(k => $("#tab-" + k).onclick = () => setTab(k));
@@ -1436,6 +1456,7 @@ function onNavPop(){}
 /* ═══ 시작 ═══ */
 loadView();
 tab = "sched";                                // 켜면 늘 일정부터 (2026-10-01 Benny: "새로 켜니까 이력으로 시작해")
+try { const t = sessionStorage.getItem("bm_tab_once"); if (t){ sessionStorage.removeItem("bm_tab_once"); if (["sched","song","hist"].includes(t)) tab = t; } } catch(e){}   // 제목 눌러 새로고침한 경우만 그 탭
 if (!FB_OK) setStatus("저장소를 불러오지 못했어요 — 네트워크를 확인하고 새로고침해 주세요", "err");
 else {
   watchBands();
