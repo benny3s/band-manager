@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01v">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-01y">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -59,6 +59,12 @@ a.lnk::before{content:"▶";font-size:9px}
 .sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .sessrow .sn{flex:0 0 84px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sessrow input{flex:1 1 auto;min-width:0}
+/* 밴드 목록 줄 — 이름 + (내 밴드만) ✕ · 지금 보는 '밴드' (공용 css 는 '약속') */
+.pkrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.pkrow:last-child{border-bottom:0}
+.pkrow .pk1{border-bottom:0;flex:1 1 auto}
+.pkrow .pkdel{flex:0 0 auto;width:36px;min-height:36px;padding:0;color:var(--muted)}
+.pk1.on::after{content:" ·  지금 보는 밴드"}
 .item .meta.mline{margin-top:4px}
 .item .meta.mline .fxnote{margin:0 6px 0 0}
 .item .subh{font-size:13px;font-weight:800;color:var(--ink);padding-top:2px}
@@ -195,9 +201,25 @@ a.lnk::before{content:"▶";font-size:9px}
       <h2 style="margin:0">밴드 고르기</h2>
       <button class="btn ghost" type="button" data-close>닫기</button>
     </div>
+    <!-- 버튼 셋 + 이 기기에서 들어간 '내 밴드' — 전체 목록은 가운데 버튼을 눌러야 (2026-10-01 Benny) -->
     <button class="btn primary" id="bandNewBtn" type="button" style="width:100%;margin-top:12px">＋ 새 밴드 만들기</button>
+    <button class="btn" id="bandAllBtn" type="button" style="width:100%;margin-top:8px">🔎 이미 등록된 밴드 찾기</button>
     <!-- 다른 밴드에 앱 자체를 소개 — 우리 밴드 정보(?b=)는 안 붙인다 (2026-10-01 Benny) -->
-    <button class="btn soft" id="bandIntroBtn" type="button" style="width:100%;margin-top:8px">📣 다른 밴드에 밴드매니저 소개하기</button>
+    <button class="btn soft" id="bandIntroBtn" type="button" style="width:100%;margin-top:8px">📣 밴드매니저 소개하기</button>
+    <div id="mineWrap" hidden>
+      <h3 class="subh" style="margin:18px 0 2px">내 밴드</h3>
+      <p class="hint" style="margin:0 0 6px">이 기기에서 들어간 적 있는 밴드 · ✕ 는 이 기기에서만 지워요 (밴드는 그대로)</p>
+      <div class="list" id="mineList"></div>
+    </div>
+  </div>
+</div>
+<!-- ══════════ 전체 밴드 목록 ══════════ -->
+<div class="modal" id="bandAllModal" hidden>
+  <div class="sheet tall" role="dialog" aria-modal="true">
+    <div class="spread">
+      <h2 style="margin:0">등록된 밴드</h2>
+      <button class="btn ghost" type="button" data-close>닫기</button>
+    </div>
     <div class="list" id="bandList" style="margin-top:10px"></div>
   </div>
 </div>
@@ -333,8 +355,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01v"></script>
-<script src="../when/sched.js?v=2026-10-01v"></script>
+<script src="../when/core.js?v=2026-10-01y"></script>
+<script src="../when/sched.js?v=2026-10-01y"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -343,7 +365,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01w";
+const BUILD = "2026-10-01y";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -388,21 +410,57 @@ function watchBands(){
     BANDS = s.docs.map(d => Object.assign({ id: d.id }, d.data()))
                   .sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
     bandsReady = true;
-    if (!$("#bandModal").hidden) renderBandList();
+    if (!$("#bandModal").hidden || !$("#bandAllModal").hidden) renderBandList();
     if (B && !bandOf(B)){ closeBand(); setStatus("지워진 밴드예요", "err"); }
     renderAll();
   }, e => setStatus("밴드 목록을 못 불러왔어요 — " + errText(e), "err"));
 }
+/* 이 기기의 '내 밴드' — 들어간 적 있는 밴드 id 목록 (bm_mine). 처음 한 번은 옛 기록(이름·PIN·마지막 밴드)에서 채운다 */
+function mineIds(){
+  let raw = ls("bm_mine");
+  if (!raw){
+    const seed = [];
+    try { for (let i = 0; i < localStorage.length; i++){ const m = /^bm_(?:me|key|t):(.+)$/.exec(localStorage.key(i) || ""); if (m && localStorage.getItem(localStorage.key(i)) && !seed.includes(m[1])) seed.push(m[1]); } } catch(e){}
+    if (ls("bm_last") && !seed.includes(ls("bm_last"))) seed.unshift(ls("bm_last"));
+    if (!seed.length) return [];
+    ls("bm_mine", JSON.stringify(seed)); raw = ls("bm_mine");
+  }
+  try { const a = JSON.parse(raw); return Array.isArray(a) ? a : []; } catch(e){ return []; }
+}
+function mineAdd(bid){ const a = mineIds().filter(x => x !== bid); a.unshift(bid); ls("bm_mine", JSON.stringify(a.slice(0, 20))); }
+/** 이 기기에서만 잊기 — 밴드·데이터는 그대로. PIN·이름·고른 시간표 기억도 지운다 */
+function mineForget(bid){
+  const b = bandOf(bid);
+  if (!confirm("‘" + (b ? b.name : "이 밴드") + "’ 을 이 기기 목록에서 지울까요?\n밴드는 그대로 있고, 다시 들어가려면 링크(와 PIN)가 필요해요.")) return;
+  ls("bm_mine", JSON.stringify(mineIds().filter(x => x !== bid)));
+  ["bm_key:", "bm_me:", "bm_t:"].forEach(k => ls(k + bid, ""));
+  if (ls("bm_last") === bid) ls("bm_last", "");
+  if (bid === B){ closeModal("bandModal"); closeBand(); setUrl(); renderAll(); }
+  else renderBandList();
+}
+function bandRow(b, onDel){
+  const row = document.createElement("div"); row.className = "pkrow";
+  const go = document.createElement("button");
+  go.type = "button"; go.className = "pk1" + (b.id === B ? " on" : "");
+  go.textContent = (b.locked ? "🔒 " : "") + b.name;
+  go.onclick = () => { if (!$("#bandAllModal").hidden) closeModal("bandAllModal"); if (!$("#bandModal").hidden) closeModal("bandModal"); if (b.id !== B) openBand(b.id); };
+  row.appendChild(go);
+  if (onDel){
+    const x = document.createElement("button"); x.type = "button"; x.className = "btn x pkdel"; x.textContent = "✕";
+    x.setAttribute("aria-label", b.name + " 이 기기 목록에서 지우기");
+    x.onclick = () => onDel(b.id);
+    row.appendChild(x);
+  }
+  return row;
+}
 function renderBandList(){
+  const mine = mineIds().map(bandOf).filter(Boolean);
+  $("#mineWrap").hidden = !mine.length;
+  const mb = $("#mineList"); mb.innerHTML = "";
+  mine.forEach(b => mb.appendChild(bandRow(b, mineForget)));
   const box = $("#bandList"); box.innerHTML = "";
   if (!BANDS.length){ box.innerHTML = '<p class="hint">아직 밴드가 없어요.</p>'; return; }
-  BANDS.forEach(b => {
-    const go = document.createElement("button");
-    go.type = "button"; go.className = "pk1" + (b.id === B ? " on" : "");
-    go.textContent = (b.locked ? "🔒 " : "") + b.name;
-    go.onclick = () => { closeModal("bandModal"); if (b.id !== B) openBand(b.id); };
-    box.appendChild(go);
-  });
+  BANDS.forEach(b => box.appendChild(bandRow(b, null)));
 }
 
 /* ═══ 밴드 열기 ═══ */
@@ -429,7 +487,7 @@ async function openBand(bid, pin){
   }
   if (b.locked) ls("bm_key:" + bid, key);
   KEY = key; BD = snap.data();
-  ls("bm_last", bid);
+  ls("bm_last", bid); mineAdd(bid);
   me = ls("bm_me:" + bid);
   const want = new URLSearchParams(location.search).get("t") || ls("bm_t:" + bid);
   bandUnsub.push(dataRef().onSnapshot(s => {
@@ -1250,11 +1308,10 @@ MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal();
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
+$("#bandAllBtn").onclick = () => { renderBandList(); openModal("bandAllModal"); };
 $("#bandIntroBtn").onclick = async () => {
   const u = location.origin + location.pathname;                 // 밴드·시간표 없이 첫 화면
-  const text = "밴드 합주 일정 취합 · 합주곡 · 진행 이력 — 새 밴드 만들어서 써보세요";
-  if (canNativeShare()){ try { await navigator.share({ title: "밴드매니저", text, url: u }); return; } catch(e){ if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; } }
-  try { await navigator.clipboard.writeText(text + "\n" + u); setStatus("소개 링크 복사됨 — 보내고 싶은 곳에 붙여넣으세요", "ok"); } catch(e){ prompt("이 주소를 공유하세요", u); }
+  await shareLine("밴드매니저 - 합주 일정·합주곡·이력 " + u, "소개 링크 복사됨 — 보내고 싶은 곳에 붙여넣으세요");
 };
 $("#noneNew").onclick = () => openModal("bandNewModal");
 $("#titleBtn").onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -1335,9 +1392,8 @@ $("#ts_delete").onclick = async () => {
 /* 공유 = 휴대폰 기본 공유창, PC·안 되면 복사 */
 $("#bShare").onclick = async () => {
   const b = bandOf(B); const u = location.origin + location.pathname + "?b=" + B + (M ? "&t=" + M : "");
-  const nm = b ? b.name : "밴드매니저";
-  if (canNativeShare()){ try { await navigator.share({ title: nm, text: nm + " — 합주 되는 날 넣어주세요" + (b && b.locked ? " (PIN 필요)" : ""), url: u }); return; } catch(e){ if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; } }
-  try { await navigator.clipboard.writeText(u); setStatus("링크 복사됨 — 단톡방에 보내세요", "ok"); } catch(e){ prompt("이 주소를 공유하세요", u); }
+  /* 한 줄 — "밴드매니저 - 키니피 https://…" (2026-10-01 Benny) */
+  await shareLine("밴드매니저 - " + (b ? b.name : "") + " " + u, "링크 복사됨 — 단톡방에 보내세요");
 };
 function onNavPop(){}
 
