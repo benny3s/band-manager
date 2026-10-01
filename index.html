@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01t">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-01v">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -151,7 +151,6 @@ a.lnk::before{content:"▶";font-size:9px}
       </div>
       <p class="fixedline" id="mFixed" hidden></p>
       <div class="sheettools">
-        <button class="btn primary" id="heatOpenBtn" type="button">결과 보기</button>
         <button class="btn soft" id="bShare" type="button">🔗 멤버에게 공유</button>
       </div>
     </div>
@@ -335,8 +334,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01t"></script>
-<script src="../when/sched.js?v=2026-10-01t"></script>
+<script src="../when/core.js?v=2026-10-01v"></script>
+<script src="../when/sched.js?v=2026-10-01v"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -345,7 +344,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01t";
+const BUILD = "2026-10-01v";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -613,7 +612,7 @@ function renderAll(){
       " · " + responders().length + " / " + members().length + "명 응답";
     $("#mFixed").hidden = !m.fixed;
     $("#mFixed").textContent = m.fixed ? fixedLine(m.fixed) : "";
-    $("#heatOpenBtn").hidden = !dates().length;
+    $("#segFix").hidden = !dates().length;                         // '결과 보기' 대신 모두 보기 옆 '📌 일정 확정'
     renderSched();
     syncMembers();
     if (!$("#tSetModal").hidden) refreshSetModal();               // 설정 창에서 시간표를 바꾸면 불러온 뒤 다시 그린다
@@ -621,7 +620,7 @@ function renderAll(){
   if (tab === "song") renderSongs();
   if (tab === "hist") renderHist();
 }
-function setTab(t){ tab = t; ls("bm_tab", t); renderAll(); window.scrollTo(0, 0); }
+function setTab(t){ tab = t; renderAll(); window.scrollTo(0, 0); }
 
 /* sched.js 훅 — 누구세요 칩 = **밴드 멤버** (시간표에만 있는 이름도 뒤에) */
 function schedActive(){ return tab === "sched"; }              // sched.js 훅 — 흐린 칩은 일정 탭에서만
@@ -1266,7 +1265,13 @@ $("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lock
 $("#tNew0").onclick = newSched;
 $("#tEdit").onclick = () => openModal("tSetModal");
 $("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
-$("#heatOpenBtn").onclick = () => openModal("heatModal");
+/* 결과 창 = '📌 일정 확정' — 직접 고르기(표)를 위로, 후보 목록은 아래로 (2026-10-01 Benny: "후보가 너무 많다") */
+(function(){
+  const body = $("#heatModal .sbody"), pc = $("#picksCard");
+  $("#heatModal h2").textContent = "📌 일정 확정";
+  Array.from(body.children).filter(el => el !== pc).forEach(el => body.insertBefore(el, pc));
+  const h = body.querySelector("h3.subh"); if (h) h.style.marginTop = "0";
+})();
 $("#ts_dates").onclick = () => openModal("calModal");
 /** 설정 창 다시 그리기 — 고른 시간표가 바뀌면 이름 칸도 바꾼다 (입력 중엔 안 건드림) */
 let tsFor = null;
@@ -1339,7 +1344,7 @@ function onNavPop(){}
 
 /* ═══ 시작 ═══ */
 loadView();
-tab = ls("bm_tab") || "sched";
+tab = "sched";                                // 켜면 늘 일정부터 (2026-10-01 Benny: "새로 켜니까 이력으로 시작해")
 if (!FB_OK) setStatus("저장소를 불러오지 못했어요 — 네트워크를 확인하고 새로고침해 주세요", "err");
 else {
   watchBands();
