@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-01m">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-01o">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -59,11 +59,16 @@ a.lnk::before{content:"▶";font-size:9px}
 .sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .sessrow .sn{flex:0 0 84px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sessrow input{flex:1 1 auto;min-width:0}
-.item .ttl .fxnote{margin-left:8px;font-size:12px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.09);
+.item .meta.mline{margin-top:4px}
+.item .meta.mline .fxnote{margin:0 6px 0 0}
+.item .subh{font-size:13px;font-weight:800;color:var(--ink);padding-top:2px}
+.item .subh:not(:first-child){border-top:1px dashed var(--line);padding-top:10px}
+.item .fxnote{margin-left:8px;font-size:12px;font-weight:700;color:var(--accent);background:rgba(var(--accent-rgb),.09);
   border-radius:999px;padding:2px 8px;vertical-align:2px;white-space:nowrap}
 .absline{font-size:13.5px}
 .absline .why{color:var(--muted)}
 #meCard .chips{margin-top:8px}
+#meCard.need{border-width:2px;border-color:rgba(var(--accent-rgb),.55)}
 .lockcard{text-align:center;padding:30px 18px}
 .lockcard input{max-width:180px;text-align:center;letter-spacing:.3em;margin:0 auto}
 .bandrow{display:flex;align-items:center;gap:8px}
@@ -131,9 +136,24 @@ a.lnk::before{content:"▶";font-size:9px}
     <button role="tab" id="tab-hist"  type="button" aria-selected="false">🎸 이력</button>
   </div>
 
+  <!-- ══ 누구세요 — 일정·합주곡·이력 **한 곳** (밴드 멤버 중에서, 밴드 단위로 기억)
+       (2026-10-01 Benny: "누구세요가 일정하고 합주곡/이력하고 따로 움직이는 것 같아")
+       sched.js 의 누구세요(#whoCard)는 숨기고 이것만 쓴다 ══ -->
+  <div class="card" id="meCard" hidden>
+    <div class="spread" id="meDone" hidden>
+      <span class="wholine"><span class="dot"></span><b id="meName"></b> 님</span>
+      <button class="btn ghost sm" id="meChange" type="button">바꾸기</button>
+    </div>
+    <div id="mePick">
+      <h2 style="margin:0">누구세요?</h2>
+      <p class="hint" style="margin:2px 0 0">이름을 고르면 일정·합주곡·이력 모두 그 이름으로 들어가요.</p>
+      <div class="chips" id="meChips"></div>
+    </div>
+  </div>
+
   <!-- ══ 일정 — 약속 잡자와 같은 화면 (sched.js) ══ -->
   <div id="pane-sched">
-    <div data-sched="who"></div>
+    <div data-sched="who" hidden></div>
     <div class="card" id="tCard">
       <div class="tchips" id="tChips"></div>
       <div class="spread">
@@ -156,19 +176,6 @@ a.lnk::before{content:"▶";font-size:9px}
       <button class="btn ghost" id="tNoneSet" type="button" style="margin-top:8px">⚙ 밴드 설정 (멤버·PIN)</button>
     </div>
     <div data-sched="sheet"></div>
-  </div>
-
-  <!-- ══ 합주곡 · 이력 — 이름은 여기서도 고른다 ══ -->
-  <div class="card" id="meCard" hidden>
-    <div class="spread" id="meDone" hidden>
-      <span class="wholine"><span class="dot"></span><b id="meName"></b> 님</span>
-      <button class="btn ghost sm" id="meChange" type="button">바꾸기</button>
-    </div>
-    <div id="mePick">
-      <h2 style="margin:0">누구세요?</h2>
-      <p class="hint" style="margin:2px 0 0">이름을 고르면 좋아요·세션에 그 이름으로 들어가요.</p>
-      <div class="chips" id="meChips"></div>
-    </div>
   </div>
 
   <div id="pane-song" hidden>
@@ -342,8 +349,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-01m"></script>
-<script src="../when/sched.js?v=2026-10-01m"></script>
+<script src="../when/core.js?v=2026-10-01o"></script>
+<script src="../when/sched.js?v=2026-10-01o"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -352,7 +359,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01m";
+const BUILD = "2026-10-01o";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -592,22 +599,22 @@ function renderAll(){
     $("#tab-" + k).setAttribute("aria-selected", String(tab === k));
     $("#pane-" + k).hidden = tab !== k;
   });
-  $("#meCard").hidden = tab === "sched";
-  if (tab !== "sched") renderMe();
+  $("#meCard").hidden = false;
+  renderMe();
 
   if (tab === "sched"){
     renderTChips();
     const on = !!(M && meet());
     $("#tNone").hidden = !!SCHEDS.length;
     $("#tCard").hidden = !SCHEDS.length;
-    $("#whoCard").hidden = !on;
+    $("#whoCard").hidden = true;                                   // 누구세요는 위 #meCard 하나로
     if (!on){ $("#sheetCard").hidden = true; $("#emptyCard").hidden = true; $("#mTitle").textContent = M ? "불러오는 중…" : ""; return; }
     const m = meet();
     $("#mTitle").textContent = m.title || "시간표";
     $("#mSub").textContent = (dates().length ? fmtFull(dates()[0]) + " ~ " + fmtFull(dates()[dates().length-1]) : "날짜 미정") +
       " · " + responders().length + " / " + members().length + "명 응답";
     $("#mFixed").hidden = !m.fixed;
-    $("#mFixed").textContent = m.fixed ? "📌 " + fmtFixedNotes(m.fixed) + " 로 정했습니다" : "";
+    $("#mFixed").textContent = m.fixed ? fixedLine(m.fixed) : "";
     $("#heatOpenBtn").hidden = !dates().length;
     renderSched();
     syncMembers();
@@ -621,6 +628,7 @@ function setTab(t){ tab = t; ls("bm_tab", t); renderAll(); window.scrollTo(0, 0)
 /* 합주곡·이력 탭의 '누구세요' — 밴드 멤버 중에서 */
 let meOpen = false;
 function renderMe(){
+  $("#meCard").classList.toggle("need", !me);
   $("#meDone").hidden = !me || meOpen;
   $("#mePick").hidden = !!me && !meOpen;
   $("#meName").textContent = me;
@@ -630,7 +638,8 @@ function renderMe(){
     c.type = "button"; c.className = "chip" + (isOff(n) ? " off" : ""); c.textContent = n;
     if (isOff(n)) c.title = "이 시간표에는 참여하지 않아요";
     c.setAttribute("aria-pressed", String(n === me));
-    c.onclick = () => { me = n; saveMe(n); meOpen = false; loadMine(true); renderAll(); };
+    /* 시간표가 열려 있으면 일정 쪽 고르기(pickMe)를 그대로 — 시간표 명단에 없으면 넣어 준다 */
+    c.onclick = () => { meOpen = false; if (M && meet()) pickMe(n); else { me = n; saveMe(n); renderAll(); } };
     box.appendChild(c);
   });
   if (!bmMembers().length) box.innerHTML = '<span class="hint" style="margin:0">⚙ 설정 → 밴드 설정에서 멤버를 넣어주세요.</span>';
@@ -886,67 +895,90 @@ function renderHist(){
   const seen = new Set(), newOf = {};
   list.forEach(h => { if (h.status === "취소"){ newOf[h.id] = []; return; } newOf[h.id] = (h.songs || []).filter(id => !seen.has(id)); (h.songs || []).forEach(id => seen.add(id)); });
   const today = todayIso();
-  const up = list.filter(h => h.date >= today), past = list.filter(h => h.date < today);
+  /* 같은 날 회차는 **카드 하나로** — 17–20 합주 · 20–22 청모 (2026-10-01 Benny: "한 날짜에 여러 일정이 따로 떠서 보기 불편") */
+  const byDay = [];
+  list.forEach(h => { const g = byDay[byDay.length - 1]; if (g && g[0].date === h.date) g.push(h); else byDay.push([h]); });
+  byDay.forEach(g => g.sort((a, b) => (a.from || "") < (b.from || "") ? -1 : 1));
+  const up = byDay.filter(g => g[0].date >= today), past = byDay.filter(g => g[0].date < today);
   box.appendChild(Object.assign(document.createElement("div"), { className: "histsec", textContent: "다가오는 합주" }));
   if (!up.length) box.appendChild(Object.assign(document.createElement("div"), { className: "empty", textContent: "잡힌 합주가 없어요." }));
-  const next = up.find(h => h.status !== "취소");
-  if (next && !openItems.has("h:auto")){ openItems.add("h:auto"); openItems.add("h:" + next.id); }
-  up.forEach(h => { const c = histCard(h, newOf[h.id] || [], today); if (h === next) c.classList.add("next"); box.appendChild(c); });
+  const next = up.find(g => g.some(h => h.status !== "취소"));
+  if (next && !openItems.has("h:auto")){ openItems.add("h:auto"); openItems.add("h:" + next[0].date); }
+  up.forEach(g => { const c = histCard(g, newOf, today); if (g === next) c.classList.add("next"); box.appendChild(c); });
   if (past.length){
     const pb = document.createElement("div"); pb.className = "item";
     const pt = Object.assign(document.createElement("div"), { className: "ttl", textContent: "지난 합주 " + past.length + "회" });
-    const pm = Object.assign(document.createElement("div"), { className: "meta", textContent: "마지막 " + fmtFull(past[past.length-1].date) + " · 누르면 펼쳐져요" });
+    const pm = Object.assign(document.createElement("div"), { className: "meta", textContent: "마지막 " + fmtFull(past[past.length-1][0].date) + " · 누르면 펼쳐져요" });
     const det = foldItem(pb, "h:past", [pt, pm]);
-    past.slice().reverse().forEach(h => det.appendChild(histCard(h, newOf[h.id] || [], today)));
+    past.slice().reverse().forEach(g => det.appendChild(histCard(g, newOf, today)));
     box.appendChild(pb);
   }
 }
-function histCard(h, fresh, today){
-  const el = document.createElement("div"); el.className = "item" + (h.date < today ? " past" : "");
+/** 그 날 카드 — 회차가 여럿이면 줄마다 '시간 · 📌 코멘트 · 장소', 펼치면 회차별 합주곡·불참·메모·수정 */
+function histCard(g, newOf, today){
+  const d = g[0].date, multi = g.length > 1;
+  const live = g.filter(h => h.status !== "취소");
+  const el = document.createElement("div"); el.className = "item" + (d < today ? " past" : "");
   const top = document.createElement("div"); top.className = "spread";
-  const t = Object.assign(document.createElement("div"), { className: "ttl", textContent: fmtLong(h.date) });
-  if (h.status === "취소") t.style.textDecoration = "line-through";
-  /* 시간표 📌 에서 넘어온 코멘트 — 직접 쓴 메모와 구분되게 작은 꼬리표로 (2026-10-01) */
-  if (h.fixNote) t.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + h.fixNote, title: "시간표에서 정할 때 단 코멘트" }));
-  const dd = h.date >= today && h.status !== "취소" ? Math.round((dObj(h.date) - dObj(today)) / 864e5) : null;
+  const t = Object.assign(document.createElement("div"), { className: "ttl", textContent: fmtLong(d) });
+  if (!live.length) t.style.textDecoration = "line-through";
+  /* 시간표 📌 에서 넘어온 코멘트 — 직접 쓴 메모와 구분되게 작은 꼬리표로 (2026-10-01). 여럿이면 줄마다 */
+  if (!multi && g[0].fixNote) t.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + g[0].fixNote, title: "시간표에서 정할 때 단 코멘트" }));
+  const dd = d >= today && live.length ? Math.round((dObj(d) - dObj(today)) / 864e5) : null;
   const st = Object.assign(document.createElement("span"), {
-    className: "pill " + (h.status === "취소" ? "warn" : dd !== null ? "go" : ""),
-    textContent: dd === 0 ? "오늘" : dd !== null ? "D-" + dd : h.status });
+    className: "pill " + (!live.length ? "warn" : dd !== null ? "go" : ""),
+    textContent: dd === 0 ? "오늘" : dd !== null ? "D-" + dd : (live[0] || g[0]).status });
   top.append(t, st);
-  const bits = [];
-  if (h.from || h.to) bits.push((h.from || "") + (h.to ? "~" + h.to : ""));
-  if (h.place) bits.push(h.place); if (h.room) bits.push(h.room);
-  if ((h.songs || []).length) bits.push("곡 " + h.songs.length);
-  const m = bits.length ? Object.assign(document.createElement("div"), { className: "meta", textContent: bits.join(" · ") }) : null;
-  const det = foldItem(el, "h:" + h.id, [top, m]);
-  if ((h.songs || []).length){
-    const sb = document.createElement("div"); sb.className = "body"; sb.innerHTML = '<span class="k">합주곡</span>';
-    h.songs.forEach(id => {
-      const s = SONGS.find(x => x.id === id);
-      const line = document.createElement("div");
-      line.textContent = (s ? s.title : "(지운 곡)") + (fresh.includes(id) ? "  (NEW)" : "");
-      if (fresh.includes(id)) line.style.color = "var(--accent)";
-      sb.appendChild(line);
-    });
-    det.appendChild(sb);
-  }
-  const abs = (h.absent || []).map(parseAbs);
-  if (abs.length){
-    const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">불참 (이유)</span>';
-    abs.forEach(a => {
-      const line = document.createElement("div"); line.className = "absline";
-      line.appendChild(document.createTextNode(a.name));
-      const why = a.why || calMemo(a.name, h.date);
-      if (why) line.appendChild(Object.assign(document.createElement("span"), { className: "why", textContent: " (" + why + ")" }));
-      bd.appendChild(line);
-    });
-    det.appendChild(bd);
-  }
-  if (h.memo){ const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">메모</span>'; bd.appendChild(document.createTextNode(h.memo)); det.appendChild(bd); }
-  const acts = document.createElement("div"); acts.className = "acts";
-  const ed = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm", textContent: "✎ 수정" });
-  ed.onclick = () => openHistForm(h);
-  acts.appendChild(ed); det.appendChild(acts);
+  const head = [top];
+  g.forEach(h => {
+    const bits = [];
+    if (h.from || h.to) bits.push((h.from || "") + (h.to ? "~" + h.to : ""));
+    if (h.place) bits.push(h.place); if (h.room) bits.push(h.room);
+    if ((h.songs || []).length) bits.push("곡 " + h.songs.length);
+    if (!bits.length && !(multi && h.fixNote)) return;
+    const m = document.createElement("div"); m.className = "meta" + (multi ? " mline" : "");
+    if (h.status === "취소") m.style.textDecoration = "line-through";
+    if (multi && h.fixNote) m.appendChild(Object.assign(document.createElement("span"), { className: "fxnote", textContent: "📌 " + h.fixNote }));
+    m.appendChild(document.createTextNode(bits.join(" · ")));
+    head.push(m);
+  });
+  const det = foldItem(el, "h:" + d, head);
+  g.forEach(h => {
+    const fresh = newOf[h.id] || [];
+    if (multi){
+      const sh = document.createElement("div"); sh.className = "subh";
+      sh.textContent = [(h.from || "") + (h.to ? "~" + h.to : ""), h.fixNote].filter(Boolean).join(" · ") || "회차";
+      det.appendChild(sh);
+    }
+    if ((h.songs || []).length){
+      const sb = document.createElement("div"); sb.className = "body"; sb.innerHTML = '<span class="k">합주곡</span>';
+      h.songs.forEach(id => {
+        const s = SONGS.find(x => x.id === id);
+        const line = document.createElement("div");
+        line.textContent = (s ? s.title : "(지운 곡)") + (fresh.includes(id) ? "  (NEW)" : "");
+        if (fresh.includes(id)) line.style.color = "var(--accent)";
+        sb.appendChild(line);
+      });
+      det.appendChild(sb);
+    }
+    const abs = (h.absent || []).map(parseAbs);
+    if (abs.length){
+      const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">불참 (이유)</span>';
+      abs.forEach(a => {
+        const line = document.createElement("div"); line.className = "absline";
+        line.appendChild(document.createTextNode(a.name));
+        const why = a.why || calMemo(a.name, h.date);
+        if (why) line.appendChild(Object.assign(document.createElement("span"), { className: "why", textContent: " (" + why + ")" }));
+        bd.appendChild(line);
+      });
+      det.appendChild(bd);
+    }
+    if (h.memo){ const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">메모</span>'; bd.appendChild(document.createTextNode(h.memo)); det.appendChild(bd); }
+    const acts = document.createElement("div"); acts.className = "acts";
+    const ed = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm", textContent: multi ? "✎ " + (h.from || "") + " 회차 수정" : "✎ 수정" });
+    ed.onclick = () => openHistForm(h);
+    acts.appendChild(ed); det.appendChild(acts);
+  });
   return el;
 }
 /* 회차 창 */
@@ -1279,7 +1311,9 @@ $("#ts_delete").onclick = async () => {
   try { const id = M; M = ""; ST = { meet:null }; unwatch(); await api({ action:"meet_remove", m: id }); setStatus("지웠어요", "ok"); showNew(); }
   catch(e){ setStatus("실패 — " + e.message, "err"); }
 };
-$("#meChange").onclick = () => { meOpen = true; renderMe(); };
+$("#meChange").onclick = () => { meOpen = !meOpen; renderMe(); };
+/* sched.js 훅 — 이름 없이 칸을 누르면 위 누구세요를 펼친다 */
+function onAskName(){ meOpen = true; renderMe(); $("#meCard").scrollIntoView({ behavior:"smooth", block:"center" }); }
 /* 공유 = 휴대폰 기본 공유창, PC·안 되면 복사 */
 $("#bShare").onclick = async () => {
   const b = bandOf(B); const u = location.origin + location.pathname + "?b=" + B + (M ? "&t=" + M : "");
