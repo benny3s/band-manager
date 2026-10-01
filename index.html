@@ -142,16 +142,15 @@ a.lnk::before{content:"▶";font-size:9px}
   <div id="pane-sched">
     <div class="card" id="tCard">
       <div class="tchips" id="tChips"></div>
-      <div class="spread">
-        <div style="min-width:0">
-          <h2 id="mTitle" class="bigtitle" style="margin:0"></h2>
-          <p class="hint" id="mSub" style="margin:3px 0 0"></p>
-        </div>
-        <button class="btn sm setbtn" id="tEdit" type="button" style="flex:0 0 auto">⚙ 설정</button>
+      <div style="min-width:0">
+        <h2 id="mTitle" class="bigtitle" style="margin:0"></h2>
+        <p class="hint" id="mSub" style="margin:3px 0 0"></p>
       </div>
       <p class="fixedline" id="mFixed" hidden></p>
+      <!-- 버튼은 두 개만 — 공유 · 밴드 설정 (2026-10-01 Benny: "링크 공유 오른쪽에 밴드 설정, 깔끔하게 2개로") -->
       <div class="sheettools">
         <button class="btn soft" id="bShare" type="button">🔗 멤버에게 공유</button>
+        <button class="btn" id="tEdit" type="button">⚙ 밴드 설정</button>
       </div>
     </div>
     <div class="card" id="tNone" hidden>
@@ -344,7 +343,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-01v";
+const BUILD = "2026-10-01w";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
