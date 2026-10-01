@@ -67,6 +67,9 @@ a.lnk::before{content:"▶";font-size:9px}
 .samples figcaption b{color:var(--ink)}
 .fixedline.linkline{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;padding:0;font:inherit;font-weight:700;cursor:pointer}
 /* 밴드 목록 줄 — 이름 + (내 밴드만) ✕ · 지금 보는 '밴드' (공용 css 는 '약속') */
+.mine-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:20px 0 2px;padding-top:12px;border-top:1px solid var(--line);
+  font-size:12px;font-weight:700;color:var(--muted)}
+.mine-h span:last-child{font-weight:500;font-size:11.5px}
 .pkrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
 .pkrow:last-child{border-bottom:0}
 .pkrow .pk1{border-bottom:0;flex:1 1 auto}
@@ -228,9 +231,9 @@ a.lnk::before{content:"▶";font-size:9px}
     <button class="btn" id="bandAllBtn" type="button" style="width:100%;margin-top:8px">🔎 이미 등록된 밴드 찾기</button>
     <!-- 다른 밴드에 앱 자체를 소개 — 우리 밴드 정보(?b=)는 안 붙인다 (2026-10-01 Benny) -->
     <button class="btn soft" id="bandIntroBtn" type="button" style="width:100%;margin-top:8px">📣 밴드매니저 소개하기</button>
+    <!-- '내 밴드' 는 작은 회색 구역 이름 — 굵은 밴드 이름과 헷갈리지 않게, 설명은 한 줄로 (2026-10-02 Benny) -->
     <div id="mineWrap" hidden>
-      <h3 class="subh" style="margin:18px 0 2px">내 밴드</h3>
-      <p class="hint" style="margin:0 0 6px">이 기기에서 들어간 적 있는 밴드 · ✕ 는 이 기기에서만 지워요 (밴드는 그대로)</p>
+      <div class="mine-h"><span>내 밴드</span><span>✕ = 이 기기에서만 지우기</span></div>
       <div class="list" id="mineList"></div>
     </div>
   </div>
@@ -387,7 +390,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-02e";
+const BUILD = "2026-10-02f";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
