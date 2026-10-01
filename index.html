@@ -367,7 +367,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-02b";
+const BUILD = "2026-10-02c";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -789,6 +789,15 @@ function renderSongs(){
   if (!list.length){ box.innerHTML = '<div class="empty">' + spec.empty + "</div>"; return; }
   list.forEach(s => box.appendChild(songCard(s)));
 }
+/** 받침 따라 조사 — 투표곡으로 / 보류로 (ㄹ 받침은 '로'). 한글이 아니면 '을(를)' 처럼 둘 다 */
+function josa(w, withB, noB){
+  const c = String(w || "").trim().slice(-1).charCodeAt(0);
+  if (!(c >= 0xAC00 && c <= 0xD7A3)) return withB === "으로" ? "(으)로" : withB + "(" + noB + ")";   // 영어 제목 등 — 을(를)
+  const jong = (c - 0xAC00) % 28;
+  if (!jong) return noB;
+  if (withB === "으로" && jong === 8) return noB;                  // ㄹ 받침 + 으로 → 로
+  return withB;
+}
 function songCard(s){
   const el = document.createElement("div"); el.className = "item";
   const t = document.createElement("div"); t.className = "ttl"; t.textContent = s.title;
@@ -831,11 +840,15 @@ function songCard(s){
   }
   const acts = document.createElement("div"); acts.className = "acts";
   SONG_VIEWS.filter(v => v.key !== spotOf(s.status)).forEach(v => {
-    const b = document.createElement("button"); b.type = "button"; b.className = "btn ghost sm"; b.textContent = "→ " + v.tab + "으로";
-    b.onclick = () => songRef(s.id).update({ status: v.key }).then(() => setStatus(s.title + " → " + v.tab, "ok")).catch(e => setStatus("실패 — " + errText(e), "err"));
+    /* 흐린 글자 대신 **버튼**으로, 옮기기 전에 한 번 묻는다 (2026-10-02 Benny) */
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn sm"; b.textContent = "→ " + v.tab + josa(v.tab, "으로", "로");
+    b.onclick = () => {
+      if (!confirm("‘" + s.title + "’ " + josa(s.title, "을", "를") + " " + v.tab + josa(v.tab, "으로", "로") + " 옮길까요?")) return;
+      songRef(s.id).update({ status: v.key }).then(() => setStatus(s.title + " → " + v.tab, "ok")).catch(e => setStatus("실패 — " + errText(e), "err"));
+    };
     acts.appendChild(b);
   });
-  const ed = document.createElement("button"); ed.type = "button"; ed.className = "btn ghost sm"; ed.textContent = "✎ 수정";
+  const ed = document.createElement("button"); ed.type = "button"; ed.className = "btn sm"; ed.textContent = "✎ 수정";
   ed.onclick = () => openSongForm(s);
   acts.appendChild(ed);
   det.appendChild(acts);
@@ -1015,7 +1028,7 @@ function histCard(g, newOf, today){
     }
     if (h.memo){ const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">메모</span>'; bd.appendChild(document.createTextNode(h.memo)); det.appendChild(bd); }
     const acts = document.createElement("div"); acts.className = "acts";
-    const ed = Object.assign(document.createElement("button"), { type: "button", className: "btn ghost sm", textContent: multi ? "✎ " + (h.from || "") + " 회차 수정" : "✎ 수정" });
+    const ed = Object.assign(document.createElement("button"), { type: "button", className: "btn sm", textContent: multi ? "✎ " + (h.from || "") + " 회차 수정" : "✎ 수정" });
     ed.onclick = () => openHistForm(h);
     acts.appendChild(ed); det.appendChild(acts);
   });
