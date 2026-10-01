@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-02a">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-02d">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 .tabs{display:flex;gap:4px;background:var(--soft);border-radius:14px;padding:4px;margin:0 0 12px}
@@ -59,6 +59,12 @@ a.lnk::before{content:"▶";font-size:9px}
 .sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .sessrow .sn{flex:0 0 84px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sessrow input{flex:1 1 auto;min-width:0}
+/* 처음 화면 샘플 — 옆으로 넘기기 (2026-10-02) */
+.samples .shots{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;scrollbar-width:thin}
+.samples figure{flex:0 0 74%;max-width:300px;margin:0;scroll-snap-align:start}
+.samples img{display:block;width:100%;height:auto;aspect-ratio:600/860;object-fit:cover;object-position:top;border-radius:12px;border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.samples figcaption{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+.samples figcaption b{color:var(--ink)}
 .fixedline.linkline{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;padding:0;font:inherit;font-weight:700;cursor:pointer}
 /* 밴드 목록 줄 — 이름 + (내 밴드만) ✕ · 지금 보는 '밴드' (공용 css 는 '약속') */
 .pkrow{display:flex;align-items:center;border-bottom:1px solid var(--line)}
@@ -120,6 +126,16 @@ a.lnk::before{content:"▶";font-size:9px}
     <h2 style="margin:0 0 4px">밴드를 골라주세요</h2>
     <p class="hint">오른쪽 위 <b>밴드 고르기</b>에서 내 밴드를 누르거나, 새로 만드세요.</p>
     <button class="btn primary wide" id="noneNew" type="button">＋ 새 밴드 만들기</button>
+  </div>
+  <!-- 처음 온 사람에게 샘플 화면 (가짜 '샘플밴드' 데이터로 찍은 것 — 실제 밴드 아님) · 2026-10-02 Benny -->
+  <div class="card samples">
+    <h2 style="margin:0 0 2px">이런 화면이에요</h2>
+    <p class="hint" style="margin:0 0 10px">옆으로 넘겨 보세요 · 샘플 밴드 화면</p>
+    <div class="shots">
+      <figure><img src="samples/sched.webp" alt="일정 — 멤버마다 되는 날을 ○ △ ✕ 로" loading="lazy" width="600" height="860"><figcaption><b>① 일정</b> 멤버마다 되는 날 ○ △ ✕</figcaption></figure>
+      <figure><img src="samples/day.webp" alt="날짜를 누르면 시간별로 몇 명 되는지 보고 📌 확정" loading="lazy" width="600" height="860"><figcaption><b>② 날짜를 누르면</b> 몇 명 되는지 보고 📌 확정</figcaption></figure>
+      <figure><img src="samples/hist.webp" alt="이력 — 확정한 합주가 자동으로 쌓인다" loading="lazy" width="600" height="860"><figcaption><b>③ 이력</b> 확정하면 합주 기록이 자동으로</figcaption></figure>
+    </div>
   </div>
 </section>
 
@@ -357,8 +373,8 @@ a.lnk::before{content:"▶";font-size:9px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="../when/core.js?v=2026-10-02a"></script>
-<script src="../when/sched.js?v=2026-10-02a"></script>
+<script src="../when/core.js?v=2026-10-02d"></script>
+<script src="../when/sched.js?v=2026-10-02d"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -367,7 +383,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-02c";
+const BUILD = "2026-10-02d";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
