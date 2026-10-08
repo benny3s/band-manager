@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-09a">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-09b">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 /* 탭 — 크게, 고른 탭은 초록으로 꽉 (2026-10-09 Benny: 여행 가자와 같이 "탭이 너무 눈에 안 띄어") */
@@ -157,7 +157,12 @@ a.lnk::before{content:"▶";font-size:9px}
 
   <!-- ══ 누구세요 — 일정·합주곡·이력 **한 곳**. 일정 화면의 카드(sched.js #whoCard)를 탭 위로 올려 같이 쓴다
        (2026-10-01 Benny: "따로 움직이는 것 같아" → "일정에 있던 디자인이 더 좋았어") ══ -->
-  <div data-sched="who"></div>
+  <!-- 👤 누구세요 · 🔗 공유 · ⚙ 밴드 설정 — 세 탭 공통 (2026-10-09 Benny: 여행 가자·약속 잡자와 같이) -->
+  <div class="hbtns" style="margin:0 0 12px">
+    <button class="hb who" id="whoBtn" type="button"></button>
+    <button class="hb share" id="bShare" type="button"><span>🔗 공유</span></button>
+    <button class="hb set" id="tEdit" type="button"><span>⚙ 밴드 설정</span></button>
+  </div>
 
   <!-- ══ 일정 — 약속 잡자와 같은 화면 (sched.js) ══ -->
   <div id="pane-sched">
@@ -169,11 +174,6 @@ a.lnk::before{content:"▶";font-size:9px}
       </div>
       <!-- 📌 줄을 누르면 일정 확정 창 (모두 보기 옆 버튼은 '📅 날짜 관리' — 2026-10-01 Benny) -->
       <button class="fixedline linkline" id="mFixed" type="button" hidden></button>
-      <!-- 버튼은 두 개만 — 공유 · 밴드 설정 (2026-10-01 Benny: "링크 공유 오른쪽에 밴드 설정, 깔끔하게 2개로") -->
-      <div class="sheettools">
-        <button class="btn soft" id="bShare" type="button">🔗 멤버에게 공유</button>
-        <button class="btn setbtn" id="tEdit" type="button">⚙ 밴드 설정</button>
-      </div>
     </div>
     <div class="card" id="tNone" hidden>
       <h2 style="margin:0 0 4px">아직 시간표가 없어요</h2>
@@ -336,8 +336,8 @@ a.lnk::before{content:"▶";font-size:9px}
       <label class="fld"><span>메모</span><textarea id="f_memo" maxlength="1000"></textarea></label>
     </div>
     <div class="sfoot">
-      <button class="btn ghost danger" id="f_delete" type="button">삭제</button>
-      <button class="btn primary" id="f_save" type="button">저장</button>
+      <button class="btn primary" id="f_save" type="button" style="flex:1 1 auto">저장</button>
+      <button class="btn delbtn" id="f_delete" type="button">삭제</button>
     </div>
   </div>
 </div>
@@ -367,16 +367,23 @@ a.lnk::before{content:"▶";font-size:9px}
       <label class="fld"><span>메모</span><input type="text" id="h_memo" maxlength="500"></label>
     </div>
     <div class="sfoot">
-      <button class="btn ghost danger" id="h_delete" type="button">삭제</button>
-      <button class="btn primary" id="h_save" type="button">저장</button>
+      <button class="btn primary" id="h_save" type="button" style="flex:1 1 auto">저장</button>
+      <button class="btn delbtn" id="h_delete" type="button">삭제</button>
     </div>
   </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- ══════════ 누구세요 — 머리의 👤 버튼으로 여는 창 (2026-10-09 Benny: 여행 가자와 같이 버튼 세 개) ══════════ -->
+<div class="modal" id="whoModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" style="max-width:440px">
+    <div style="display:flex;justify-content:flex-end;margin:-4px -4px -30px 0"><button class="iconbtn" type="button" data-close aria-label="닫기">✕</button></div>
+    <div data-sched="who"></div>
+  </div>
+</div>
 <script src="../when/core.js?v=2026-10-08f"></script>
-<script src="../when/sched.js?v=2026-10-08f"></script>
+<script src="../when/sched.js?v=2026-10-09b"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -385,7 +392,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-08f";
+const BUILD = "2026-10-09b";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -656,6 +663,16 @@ function showNew(){                       // sched.js 가 '시간표 없음/지�
   if (!M && SCHEDS.length){ openSched(SCHEDS[0].id, true); return; }
   renderAll();
 }
+/* ═══ 👤 누구세요 — 머리 버튼 · 창 (2026-10-09 Benny: 여행 가자와 같이 버튼 세 개) ═══ */
+function openWho(){ whoOpen = true; whoAdd = false; renderWho(); openModal("whoModal"); }
+function onWhoPicked(){ if (!$("#whoModal").hidden) closeModal("whoModal"); renderWhoBtn(); }
+function renderWhoBtn(){
+  const b = $("#whoBtn"); if (!b) return;
+  b.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = "👤 " + (me || "누구세요?"); b.appendChild(sp);
+  b.classList.toggle("need", !me);
+}
+$("#whoBtn").onclick = openWho;
+
 function renderAll(){
   const b = bandOf(B);
   $("#bandName").textContent = b ? (b.locked ? "🔒 " : "") + b.name : "🎸 밴드 고르기";
@@ -676,6 +693,7 @@ function renderAll(){
   });
   $("#whoCard").hidden = false;
   if (tab !== "sched") renderWho();                                // 일정 탭은 renderSched 가 그린다
+  renderWhoBtn();
 
   if (tab === "sched"){
     renderTChips();
@@ -874,7 +892,7 @@ function songCard(s){
 }
 const songRef = id => dataRef().collection("songs").doc(id);
 function vote(s, val){
-  if (!me){ setStatus("위에서 이름을 먼저 골라주세요", "err"); whoOpen = true; renderWho(); $("#whoCard").scrollIntoView({ behavior:"smooth", block:"center" }); return; }
+  if (!me){ setStatus("👤 누구세요에서 이름을 먼저 골라주세요", "err"); openWho(); return; }
   songRef(s.id).update(new FP("votes", me), val === null ? FV.delete() : val).catch(e => setStatus("투표 실패 — " + errText(e), "err"));
 }
 
