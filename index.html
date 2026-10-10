@@ -60,6 +60,10 @@ a.lnk::before{content:"▶";font-size:9px}
 .sessrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .sessrow .sn{flex:0 0 84px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sessrow input{flex:1 1 auto;min-width:0}
+/* 세션 고르기 — ▾ 누르면 그 줄 밑에 역할 칩 (2026-10-10: datalist 는 폰에서 한 번 고르면 그 글자로 걸러져 다른 세션이 안 떴다) */
+.sessrow .rolebtn{flex:0 0 auto;min-height:40px;padding:0 10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:13px;font-weight:700;border-radius:10px}
+.rolechips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px 92px}
+@media (max-width:420px){ .rolechips{margin-left:0} }
 .fixedline.linkline{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;padding:0;font:inherit;font-weight:700;cursor:pointer}
 /* 밴드 목록 줄 — 이름 + (내 밴드만) ✕ · 지금 보는 '밴드' (공용 css 는 '약속') */
 .mine-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:20px 0 2px;padding-top:12px;border-top:1px solid var(--line);
@@ -324,7 +328,6 @@ a.lnk::before{content:"▶";font-size:9px}
       <div class="fld"><span>어디에</span><div class="chips" id="f_status"></div></div>
       <div class="fld"><span>세션 — 이름 옆에 역할. 비우면 빠져요</span><div id="f_sess"></div>
         <div class="sessrow"><span class="sn">그 외</span><input type="text" id="f_sessExtra" placeholder="객원 등  예: 코러스: 친구"></div>
-        <datalist id="roleList"><option value="보컬"><option value="기타1"><option value="기타2"><option value="베이스"><option value="드럼"><option value="키보드"><option value="코러스"></datalist>
       </div>
       <label class="fld"><span>링크 — 주소만 붙여넣으면 돼요. 앞에 이름을 쓰면 그 이름으로</span>
         <textarea id="f_links" maxlength="2000" placeholder="https://youtu.be/...&#10;라이브 https://youtu.be/..."></textarea>
@@ -392,7 +395,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-09b";
+const BUILD = "2026-10-10a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -898,6 +901,7 @@ function vote(s, val){
 
 /* 곡 창 */
 let songEditing = null, songStatus = "연습중";
+const ROLES = ["보컬", "기타1", "기타2", "베이스", "드럼", "키보드", "코러스"];
 function renderSessEditor(parts){
   const list = parseParts(parts), mem = bmMembers(), roles = {}, extra = [];
   list.forEach(p => {
@@ -909,8 +913,24 @@ function renderSessEditor(parts){
     const r = document.createElement("div"); r.className = "sessrow";
     const nm = document.createElement("span"); nm.className = "sn"; nm.textContent = n;
     const inp = document.createElement("input"); inp.type = "text"; inp.dataset.who = n;
-    inp.setAttribute("list", "roleList"); inp.placeholder = "역할 (보컬, 기타1 …)"; inp.value = roles[n] || "";
-    r.append(nm, inp); box.appendChild(r);
+    inp.placeholder = "역할 (보컬, 기타1 …)"; inp.value = roles[n] || ""; inp.maxLength = 40;
+    const tg = Object.assign(document.createElement("button"), { type: "button", className: "btn rolebtn", textContent: "고르기 ▾" });
+    tg.setAttribute("aria-label", n + " 세션 고르기");
+    const chips = document.createElement("div"); chips.className = "rolechips"; chips.hidden = true;
+    const cur = () => inp.value.split(/[,·]+/).map(x => x.trim()).filter(Boolean);
+    const paint = () => chips.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(cur().includes(b.textContent))));
+    ROLES.forEach(role => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className: "chip sm", textContent: role });
+      b.onclick = () => { const c = cur(), i = c.indexOf(role); i >= 0 ? c.splice(i, 1) : c.push(role); inp.value = c.join(", "); paint(); };
+      chips.appendChild(b);
+    });
+    inp.addEventListener("input", paint);
+    tg.onclick = () => {
+      const open = chips.hidden;
+      $$("#f_sess .rolechips").forEach(x => x.hidden = true); $$("#f_sess .rolebtn").forEach(x => x.textContent = "고르기 ▾");
+      chips.hidden = !open; tg.textContent = open ? "닫기 ▴" : "고르기 ▾"; paint();
+    };
+    r.append(nm, inp, tg); box.append(r, chips);
   });
   $("#f_sessExtra").value = extra.join(" / ");
 }
