@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-10a">
+<link rel="stylesheet" href="../when/ui.css?v=2026-10-10b">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 /* 탭 — 크게, 고른 탭은 초록으로 꽉 (2026-10-09 Benny: 여행 가자와 같이 "탭이 너무 눈에 안 띄어") */
@@ -385,7 +385,7 @@ a.lnk::before{content:"▶";font-size:9px}
     <div data-sched="who"></div>
   </div>
 </div>
-<script src="../when/core.js?v=2026-10-10a"></script>
+<script src="../when/core.js?v=2026-10-10b"></script>
 <script src="../when/sched.js?v=2026-10-10a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
@@ -395,7 +395,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-10c";
+const BUILD = "2026-10-10d";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
