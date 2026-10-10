@@ -395,7 +395,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-10a";
+const BUILD = "2026-10-10b";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -988,7 +988,18 @@ $("#f_delete").onclick = async () => {
 /* ═══ 합주 이력 ═══ */
 const sessRef = id => dataRef().collection("sessions").doc(id);
 /** 불참 저장 모양 "이름(이유)" */
-function parseAbs(x){ const m = String(x).match(/^(.+?)\s*\((.*)\)\s*$/); return m ? { name: m[1].trim(), why: m[2].trim() } : { name: String(x).trim(), why: "" }; }
+/** 불참 "이름(이유)" 풀기 — 멤버 이름부터 맞춘다 (2026-10-10: 키니피는 이름이 '이혜연(V)' 라
+    옛 풀이는 이름 '이혜연' · 이유 'V)(여행' 으로 갈라서, 회차를 고쳐 저장하면 불참이 망가졌다) */
+function parseAbs(x, also){
+  const s = String(x).trim();
+  const names = bmMembers().concat(Array.isArray(also) ? also : []).sort((a, b) => b.length - a.length);
+  for (const n of names){
+    if (s === n) return { name: n, why: "" };
+    if (s.startsWith(n)){ const m = s.slice(n.length).match(/^\s*\((.*)\)\s*$/); if (m) return { name: n, why: m[1].trim() }; }
+  }
+  const m = s.match(/^(.+?)\s*\(([^()]*)\)\s*$/);
+  return m ? { name: m[1].trim(), why: m[2].trim() } : { name: s, why: "" };
+}
 function fmtAbs(n, why){ why = String(why || "").replace(/[,\n()]/g, " ").replace(/\s+/g, " ").trim(); return why ? n + "(" + why + ")" : n; }
 function lastSess(){ return SESS.slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0] || null; }
 function fmtLong(d){ return fmtFull(d); }
@@ -1070,7 +1081,7 @@ function histCard(g, newOf, today){
       });
       det.appendChild(sb);
     }
-    const abs = (h.absent || []).map(parseAbs);
+    const abs = (h.absent || []).map(x => parseAbs(x));
     if (abs.length){
       const bd = document.createElement("div"); bd.className = "body"; bd.innerHTML = '<span class="k">불참 (이유)</span>';
       abs.forEach(a => {
@@ -1289,8 +1300,8 @@ async function renameMember(from, to){
       if (Object.keys(up).length) await songRef(s.id).update(up);
     }
     for (const h of SESS){
-      if (!(h.absent || []).some(x => parseAbs(x).name === from)) continue;
-      await sessRef(h.id).update({ absent: h.absent.map(x => { const a = parseAbs(x); return a.name === from ? fmtAbs(to, a.why) : x; }) });
+      if (!(h.absent || []).some(x => parseAbs(x, [from]).name === from)) continue;
+      await sessRef(h.id).update({ absent: h.absent.map(x => { const a = parseAbs(x, [from]); return a.name === from ? fmtAbs(to, a.why) : x; }) });
     }
     if (me === from){ me = to; saveMe(to); }
     setStatus(from + " → " + to, "ok"); renderBandSet();
