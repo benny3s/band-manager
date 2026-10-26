@@ -227,7 +227,8 @@ a.lnk::before{content:"▶";font-size:9px}
     </div>
     <!-- 버튼 셋 + 이 기기에서 들어간 '내 밴드' — 전체 목록은 가운데 버튼을 눌러야 (2026-10-01 Benny) -->
     <button class="btn primary" id="bandNewBtn" type="button" style="width:100%;margin-top:12px">＋ 새 밴드 만들기</button>
-    <button class="btn" id="bandAllBtn" type="button" style="width:100%;margin-top:8px">🔎 이미 등록된 밴드 찾기</button>
+    <!-- 전체 밴드 목록은 없앰 — 링크로만 들어온다 (2026-10-26 보안) -->
+    <p class="hint" style="margin:8px 0 0">이미 있는 밴드는 멤버에게 받은 링크로 들어와요.</p>
     <!-- 다른 밴드에 앱 자체를 소개 — 우리 밴드 정보(?b=)는 안 붙인다 (2026-10-01 Benny) -->
     <button class="btn soft" id="bandIntroBtn" type="button" style="width:100%;margin-top:8px">📣 밴드매니저 소개하기</button>
     <!-- '내 밴드' 는 작은 회색 구역 이름 — 굵은 밴드 이름과 헷갈리지 않게, 설명은 한 줄로 (2026-10-02 Benny) -->
@@ -391,11 +392,11 @@ a.lnk::before{content:"▶";font-size:9px}
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
    저장소 (Firestore benny-apps, 규칙: benny-apps/firestore.rules)
-     bands/{bid}                 이름·잠김 — 목록은 누구나
+     bands/{bid}                 이름·잠김 — id 를 아는 사람만(링크). 전체 목록은 막힘 (2026-10-26)
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-10d";
+const BUILD = "2026-10-26a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -426,6 +427,8 @@ async function keyOf(bid, pin){
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 function newId(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+/* 밴드 id = 링크의 열쇠 → 추측 못 하게 무작위 20자 (2026-10-26, 예전 band1·시각 기반 id 는 맞혀 볼 수 있었다) */
+function bandId(){ return "b" + Array.from(crypto.getRandomValues(new Uint8Array(20)), x => (x % 36).toString(36)).join(""); }
 function pinOk(p){ return /^\d{4,8}$/.test(p); }
 function setUrl(){
   const q = new URLSearchParams();
@@ -434,16 +437,27 @@ function setUrl(){
   try { history.replaceState(history.state, "", location.pathname + (q.toString() ? "?" + q : "")); } catch(e){}
 }
 
-/* ═══ 밴드 목록 — 누구나 본다 ═══ */
-function watchBands(){
-  db.collection("bands").onSnapshot(s => {
-    BANDS = s.docs.map(d => Object.assign({ id: d.id }, d.data()))
-                  .sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
-    bandsReady = true;
-    if (!$("#bandModal").hidden || !$("#bandAllModal").hidden) renderBandList();
-    if (B && !bandOf(B)){ closeBand(); setStatus("지워진 밴드예요", "err"); }
+/* ═══ 밴드 목록 — 링크 전용 (2026-10-26 Benny: "링크 있어야만 들어올 수 있게")
+   전체 목록은 서버 규칙에서 막았다(bands list 불가) → 이 기기에서 들어가 본 밴드(bm_mine)와 링크(?b=)로 연 밴드만 하나씩 지켜본다 */
+const bandWatch = {};
+function watchBand(id){
+  if (!id || bandWatch[id]) return;
+  bandWatch[id] = db.collection("bands").doc(id).onSnapshot(s => {
+    BANDS = BANDS.filter(b => b.id !== id);
+    if (s.exists) BANDS.push(Object.assign({ id: s.id }, s.data()));
+    BANDS.sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
+    if (!$("#bandModal").hidden) renderBandList();
+    if (B === id && !s.exists){ closeBand(); setStatus("없어진 밴드예요 — 새 링크를 받아 주세요", "err"); }
     renderAll();
-  }, e => setStatus("밴드 목록을 못 불러왔어요 — " + errText(e), "err"));
+  }, () => {});
+}
+function watchBands(){
+  const ids = mineIds().slice();
+  const q = new URLSearchParams(location.search).get("b");
+  if (q && !ids.includes(q)) ids.unshift(q);
+  ids.forEach(watchBand);
+  bandsReady = true;
+  renderAll();
 }
 /* 이 기기의 '내 밴드' — 들어간 적 있는 밴드 id 목록 (bm_mine). 처음 한 번은 옛 기록(이름·PIN·마지막 밴드)에서 채운다 */
 function mineIds(){
@@ -488,9 +502,6 @@ function renderBandList(){
   $("#mineWrap").hidden = !mine.length;
   const mb = $("#mineList"); mb.innerHTML = "";
   mine.forEach(b => mb.appendChild(bandRow(b, mineForget)));
-  const box = $("#bandList"); box.innerHTML = "";
-  if (!BANDS.length){ box.innerHTML = '<p class="hint">아직 밴드가 없어요.</p>'; return; }
-  BANDS.forEach(b => box.appendChild(bandRow(b, null)));
 }
 
 /* ═══ 밴드 열기 ═══ */
@@ -505,7 +516,8 @@ async function openBand(bid, pin){
   closeBand();
   B = bid;
   const b = bandOf(bid) || await db.collection("bands").doc(bid).get().then(s => s.exists ? Object.assign({ id: s.id }, s.data()) : null).catch(() => null);
-  if (!b){ B = ""; renderAll(); setStatus("없는 밴드예요", "err"); return; }
+  if (!b){ B = ""; renderAll(); setStatus("없는 밴드예요 — 링크를 다시 확인해 주세요", "err"); return; }
+  watchBand(bid);
   let key = pin !== undefined ? await keyOf(bid, pin) : (b.locked ? ls("bm_key:" + bid) : await keyOf(bid, ""));
   if (!key){ renderAll(); showLock(b); return; }
   const snap = await db.collection("bandData").doc(key).get().catch(() => null);
@@ -1218,7 +1230,7 @@ $("#nb_make").onclick = async () => {
   if (pin && !pinOk(pin)){ setStatus("PIN은 숫자 4~8자리예요", "err"); return; }
   const btn = $("#nb_make"); if (btn.disabled) return; btn.disabled = true;
   try {
-    const bid = newId("b"), key = await keyOf(bid, pin);
+    const bid = bandId(), key = await keyOf(bid, pin);
     const bt = db.batch();
     bt.set(db.collection("bands").doc(bid), { name, locked: !!pin, createdAt: FV.serverTimestamp() });
     bt.set(db.collection("bandData").doc(key), { band: bid, members: who ? [who] : [], createdAt: FV.serverTimestamp() });
@@ -1389,7 +1401,6 @@ MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal();
 MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
-$("#bandAllBtn").onclick = () => { renderBandList(); openModal("bandAllModal"); };
 $("#bandIntroBtn").onclick = async () => {
   const u = location.origin + location.pathname;                 // 밴드·시간표 없이 첫 화면
   await shareLine("밴드매니저 - 합주 일정·합주곡·이력 " + u, "소개 링크 복사됨 — 보내고 싶은 곳에 붙여넣으세요");
