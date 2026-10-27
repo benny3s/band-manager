@@ -99,9 +99,13 @@ a.lnk::before{content:"▶";font-size:9px}
 #bs_members .btn.sm{min-height:36px;padding:4px 10px}
 .cfg-danger{margin-top:18px;border-top:1px solid var(--line);padding-top:10px}
 .cfg-danger summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);list-style:revert}
+/* 관리자 전용 (2026-10-27 Benny: "링크만 있으면 들어가고, 다른 프로젝트는 안 보이게 — 관리는 나만")
+   관리자 = 포털(benny3s.github.io)에서 Benny 3번 클릭으로 관리자 모드를 켠 기기 (localStorage bennyAdminAt, 같은 주소라 공유) */
+body:not(.is-admin) .adm{display:none!important}
 </style>
 </head>
 <body>
+<script>try { if (localStorage.getItem("bennyAdminAt")) document.body.classList.add("is-admin"); } catch(e){}</script>
 <div class="wrap">
 
 <div class="iab" id="iabBar" hidden>
@@ -211,7 +215,7 @@ a.lnk::before{content:"▶";font-size:9px}
 </section>
 
 <footer id="foot"></footer>
-<p class="more"><a href="https://benny3s.github.io/" target="_blank" rel="noopener">🧭 개발자의 다른 프로젝트도 구경하기 →</a></p>
+<p class="more adm"><a href="https://benny3s.github.io/" target="_blank" rel="noopener">🧭 개발자의 다른 프로젝트도 구경하기 →</a></p>
 </div>
 
 <!-- ══════════ 밴드 고르기 ══════════ -->
@@ -258,7 +262,7 @@ a.lnk::before{content:"▶";font-size:9px}
     </div>
     <label class="fld"><span>밴드 이름</span><input type="text" id="nb_name" maxlength="20" placeholder="예: 애쉬만루트"></label>
     <label class="fld"><span>내 이름</span><input type="text" id="nb_me" maxlength="12" placeholder="예: 베니"></label>
-    <label class="fld"><span>PIN (선택) — 숫자 4~8자리. 걸면 PIN 아는 사람만 들어와요</span>
+    <label class="fld adm"><span>PIN (선택) — 숫자 4~8자리. 걸면 PIN 아는 사람만 들어와요</span>
       <input type="text" id="nb_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="비우면 누구나"></label>
     <button class="btn primary wide" id="nb_make" type="button" style="margin-top:12px">만들기 →</button>
   </div>
@@ -294,7 +298,7 @@ a.lnk::before{content:"▶";font-size:9px}
     <h3 class="cfg-h">🎸 밴드</h3>
     <label class="fld"><span>밴드 이름</span>
       <div class="row nowrap"><input type="text" id="bs_name" maxlength="20" style="flex:1 1 auto"><button class="btn" id="bs_nameSave" type="button">저장</button></div></label>
-    <div class="fld"><span>PIN</span>
+    <div class="fld adm"><span>PIN</span>
       <p class="hint" id="bs_pinState" style="margin:0 0 8px"></p>
       <div class="row nowrap">
         <input type="text" id="bs_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="새 PIN (비우면 해제)" style="flex:1 1 auto">
@@ -307,7 +311,7 @@ a.lnk::before{content:"▶";font-size:9px}
       <div class="row" style="margin-top:10px;gap:6px">
         <button class="btn ghost danger" id="ts_reset" type="button">응답 전부 지우기</button>
         <button class="btn ghost danger" id="ts_delete" type="button">이 시간표 지우기</button>
-        <button class="btn ghost danger" id="bs_delete" type="button">이 밴드 지우기</button>
+        <button class="btn ghost danger adm" id="bs_delete" type="button">이 밴드 지우기</button>
       </div>
     </details>
   </div>
@@ -396,7 +400,7 @@ a.lnk::before{content:"▶";font-size:9px}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-26b";
+const BUILD = "2026-10-27a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -693,7 +697,7 @@ function renderAll(){
   $("#bandName").textContent = b ? (b.locked ? "🔒 " : "") + b.name : "🎸 밴드 고르기";
   $("#bandBtn").title = b ? b.name + " — 다른 밴드 고르기" : "밴드 고르기";
   document.title = b ? b.name + " — 밴드매니저" : "밴드매니저";
-  $("#foot").textContent = "밴드매니저 " + BUILD + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
+  $("#foot").textContent = "밴드매니저 " + BUILD + (document.body.classList.contains("is-admin") ? " · 관리자" : "") + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
   const inBand = !!(B && KEY);
   $("#view-band").hidden = !inBand;
   $("#view-none").hidden = !!B || !bandsReady;
