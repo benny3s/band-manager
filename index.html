@@ -179,6 +179,8 @@ body:not(.is-admin) .adm{display:none!important}
       <div style="min-width:0">
         <h2 id="mTitle" class="bigtitle" style="margin:0"></h2>
         <p class="hint" id="mSub" style="margin:3px 0 0"></p>
+        <!-- 참여 멤버 바꾸기 — 설정 창 안 ✓ 대신 여기서 바로 (2026-10-27 Benny "멤버 지정 불편") -->
+        <button class="btn ghost sm" id="mPart" type="button" style="margin-top:6px"></button>
       </div>
       <!-- 📌 줄을 누르면 일정 확정 창 (모두 보기 옆 버튼은 '📅 날짜 관리' — 2026-10-01 Benny) -->
       <button class="fixedline linkline" id="mFixed" type="button" hidden></button>
@@ -254,6 +256,21 @@ body:not(.is-admin) .adm{display:none!important}
 </div>
 
 <!-- ══════════ 새 밴드 ══════════ -->
+<!-- ══════════ 새 시간표 / 참여 멤버 — 이름과 멤버를 한 창에서 (2026-10-27 Benny: "시간표 만들 때 참여 멤버 고르기가 불편")
+     예전: 이름만 묻고 전원 참여로 만든 뒤, 빼려면 ⚙ 설정 → 멤버 줄의 ✓ 를 하나씩 ══════════ -->
+<div class="modal" id="tNewModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" style="max-width:420px">
+    <div class="spread">
+      <h2 style="margin:0" id="tn_head">새 시간표</h2>
+      <button class="iconbtn" type="button" data-close aria-label="닫기">✕</button>
+    </div>
+    <label class="fld" id="tn_nameF"><span>시간표 이름</span><input type="text" id="tn_name" maxlength="20"></label>
+    <div class="fld"><span id="tn_memH">참여 멤버</span>
+      <div class="chips" id="tn_mem" style="margin-top:6px"></div></div>
+    <button class="btn primary wide" id="tn_go" type="button" style="margin-top:14px">만들기 →</button>
+  </div>
+</div>
+
 <div class="modal" id="bandNewModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" style="max-width:420px">
     <div class="spread">
@@ -400,7 +417,7 @@ body:not(.is-admin) .adm{display:none!important}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-27b";
+const BUILD = "2026-10-27c";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -576,18 +593,57 @@ async function openSched(id, quiet){
   ls("bm_t:" + B, id); setUrl();
   renderAll(); load();
 }
-async function newSched(){
-  const n = SCHEDS.length + 1;
-  const title = await askText({ title: "새 시간표 이름", value: n === 1 ? "합주" : "시간표" + n, ok: "만들기", maxlength: 20 });
-  if (!title || !title.trim()) return;
+/* 새 시간표 = 이름 + 참여 멤버(칩, 처음엔 전원)를 한 창에서 → 만들기 → 날짜 고르기.
+   같은 창을 '👥 참여 바꾸기'(지금 시간표)로도 쓴다. 빠진 사람은 시간표 문서의 off (입력은 남음) */
+let tnMode = "new", tnOn = [];
+function newSched(){ tnMode = "new"; openModal("tNewModal"); }
+function editPart(){ if (M && meet()){ tnMode = "edit"; openModal("tNewModal"); } }
+MODAL_OPEN.tNewModal = () => {
+  const all = bmMembers(), isNew = tnMode === "new";
+  tnOn = isNew ? all.slice() : all.filter(n => !offList().includes(n));
+  $("#tn_head").textContent = isNew ? "새 시간표" : "👥 ‘" + (meet().title || "시간표") + "’ 참여 멤버";
+  $("#tn_nameF").hidden = !isNew;
+  if (isNew) $("#tn_name").value = SCHEDS.length ? "시간표" + (SCHEDS.length + 1) : "합주";
+  $("#tn_go").textContent = isNew ? "만들기 → 날짜 고르기" : "저장";
+  renderTnMem();
+};
+function renderTnMem(){
+  const all = bmMembers(), box = $("#tn_mem"); box.innerHTML = "";
+  $("#tn_memH").textContent = "참여 멤버 " + tnOn.length + " / " + all.length + "명 · 눌러서 빼기·넣기";
+  all.forEach(n => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "chip", textContent: n });
+    b.setAttribute("aria-pressed", String(tnOn.includes(n)));
+    b.onclick = () => {
+      if (tnOn.includes(n)){ if (tnOn.length === 1){ setStatus("적어도 한 명은 참여해야 해요", "err"); return; } tnOn = tnOn.filter(x => x !== n); }
+      else tnOn = all.filter(x => x === n || tnOn.includes(x));
+      renderTnMem();
+    };
+    box.appendChild(b);
+  });
+}
+$("#tn_go").onclick = async () => {
+  const off = bmMembers().filter(n => !tnOn.includes(n));
+  if (tnMode === "edit"){
+    closeModal("tNewModal");
+    act({ action:"meet_set", off: JSON.stringify(off) }, "참여 멤버를 바꿨어요 (" + tnOn.length + "명)", () => { if (ST.meet) ST.meet.off = off; });
+    if (ST.meet) ST.meet.off = off;
+    renderAll(); return;
+  }
+  const title = $("#tn_name").value.trim();
+  if (!title){ setStatus("시간표 이름을 적어주세요", "err"); return; }
+  const go = $("#tn_go"); go.disabled = true;
   try {
-    const r = await api({ action:"meet_new", title: title.trim(), who: me || "", place:"",
+    const r = await api({ action:"meet_new", title, who: me || "", place:"",
                           hourStart: 18, hourEnd: 23, members: bmMembers().join(","), dates: "" });
+    closeModal("tNewModal");
     openSched(r.newId, true);
-    openModal("calModal");
+    if (off.length) await act({ action:"meet_set", off: JSON.stringify(off) }, "", () => { if (ST.meet) ST.meet.off = off; });
+    afterNav(() => openModal("calModal"));
     setStatus("후보 날짜를 골라주세요", "ok");
   } catch(e){ setStatus("실패 — " + e.message, "err"); }
-}
+  finally { go.disabled = false; }
+};
+$("#tn_name").addEventListener("keydown", e => { if (e.key === "Enter") $("#tn_go").click(); });
 /** 밴드 멤버 ↔ 시간표 참여자를 맞춘다 — 빠진 멤버는 시간표에 넣고, 시간표에서 새로 생긴 이름은 멤버로 */
 const syncTried = new Set();
 function syncMembers(){
@@ -724,6 +780,8 @@ function renderAll(){
     $("#mTitle").textContent = m.title || "시간표";
     $("#mSub").textContent = (dates().length ? fmtFull(dates()[0]) + " ~ " + fmtFull(dates()[dates().length-1]) : "날짜 미정") +
       " · " + responders().length + " / " + members().length + "명 응답";
+    { const all = bmMembers(), off = offList().filter(n => all.includes(n));
+      $("#mPart").textContent = "👥 참여 " + (all.length - off.length) + "명" + (off.length ? " (빠짐: " + off.join(", ") + ")" : "") + " · 바꾸기"; }
     $("#mFixed").hidden = !dates().length;
     $("#mFixed").textContent = (m.fixed ? fixedLine(m.fixed) : "📌 아직 정한 날이 없어요 — 눌러서 일정 확정") + "  ›";
     $("#segFix").hidden = !dates().length;                         // '결과 보기' 대신 모두 보기 옆 '📌 일정 확정'
@@ -1439,6 +1497,7 @@ $("#lockGo").onclick = () => { const p = $("#lockPin").value.trim(); if (!p) ret
 $("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lockGo").click(); });
 ["sched", "song", "hist"].forEach(k => $("#tab-" + k).onclick = () => setTab(k));
 $("#tNew0").onclick = newSched;
+$("#mPart").onclick = editPart;
 $("#tEdit").onclick = () => openModal("tSetModal");
 $("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
 /* 결과 창 = '📌 일정 확정' — 직접 고르기(표)를 위로, 후보 목록은 아래로 (2026-10-01 Benny: "후보가 너무 많다")
