@@ -400,7 +400,7 @@ body:not(.is-admin) .adm{display:none!important}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-27a";
+const BUILD = "2026-10-27b";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -872,6 +872,14 @@ function songCard(s){
   const badges = document.createElement("div"); badges.className = "badges";
   if (s.status !== "연습중" && s.key) badges.appendChild(Object.assign(document.createElement("span"), { className: "pill", textContent: s.key }));
   if (s.tuning) badges.appendChild(Object.assign(document.createElement("span"), { className: "pill amber", textContent: s.tuning }));
+  /* 🎧 연습 = Music Lab 의 그 곡 (2026-10-27 Benny "밴드매니저랑 Music Lab 둘이 sync").
+     ?bm=밴드 id 로 Music Lab 이 이 밴드 친구로 로그인(PIN 없이), #yt/영상 id 로 그 곡을 엶 — 아직 분석 안 했으면 Music Lab 합주곡 줄에서 ＋ 분석 */
+  const yt = (/(?:youtu\.be\/|[?&]v=|\/shorts\/)([\w-]{11})/.exec(s.links || "") || [])[1];
+  if (yt){
+    const a = document.createElement("a"); a.className = "lnk"; a.target = "_blank"; a.rel = "noopener"; a.textContent = "🎧 연습";
+    a.href = "https://benny3s.github.io/music/?bm=" + encodeURIComponent(B) + "#yt/" + yt;
+    badges.appendChild(a);
+  }
   parseLinks(s.links).forEach(l => {
     const a = document.createElement("a"); a.className = "lnk"; a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.label;
     badges.appendChild(a);
