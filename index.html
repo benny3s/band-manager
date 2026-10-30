@@ -105,7 +105,7 @@ body:not(.is-admin) .adm{display:none!important}
 </style>
 </head>
 <body>
-<script>try { if (localStorage.getItem("bennyAdminAt")) document.body.classList.add("is-admin"); } catch(e){}</script>
+<script>try { if (localStorage.getItem("bennyAdminOff") !== "1" && (localStorage.getItem("bennyAdminSession") === "1" || localStorage.getItem("bennyAdminAt"))) document.body.classList.add("is-admin"); } catch(e){}</script>
 <div class="wrap">
 
 <div class="iab" id="iabBar" hidden>
@@ -128,6 +128,10 @@ body:not(.is-admin) .adm{display:none!important}
 
 <!-- 밴드를 아직 안 골랐을 때 -->
 <section id="view-none" hidden>
+  <div class="card" id="homeMine" hidden>
+    <h2 style="margin:0 0 4px">내 밴드</h2>
+    <div class="list" id="homeMineList"></div>
+  </div>
   <div class="card">
     <h2 style="margin:0 0 4px">밴드를 골라주세요</h2>
     <p class="hint">오른쪽 위 <b>밴드 고르기</b>에서 내 밴드를 누르거나, 새로 만드세요.</p>
@@ -407,8 +411,8 @@ body:not(.is-admin) .adm{display:none!important}
     <div data-sched="who"></div>
   </div>
 </div>
-<script src="../when/core.js?v=2026-10-10b"></script>
-<script src="../when/sched.js?v=2026-10-26a"></script>
+<script src="../when/core.js?v=2026-10-30a"></script>
+<script src="../when/sched.js?v=2026-10-30a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
    이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
@@ -417,7 +421,7 @@ body:not(.is-admin) .adm{display:none!important}
      bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-27c";
+const BUILD = "2026-10-30a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -479,6 +483,21 @@ function watchBands(){
   ids.forEach(watchBand);
   bandsReady = true;
   renderAll();
+  if (typeof adminList === "function"){
+    adminList("bands").then(adm => {
+      if (!adm || !adm.length) return;
+      const cur = mineIds();
+      let chg = false;
+      adm.forEach(id => {
+        if (id && !cur.includes(id)){ cur.push(id); chg = true; }
+        watchBand(id);
+      });
+      if (chg) ls("bm_mine", JSON.stringify(cur.slice(0, 50)));
+      if (typeof applyAdminUi === "function") applyAdminUi();
+      renderBandList();
+      renderAll();
+    });
+  }
 }
 /* 이 기기의 '내 밴드' — 들어간 적 있는 밴드 id 목록 (bm_mine). 처음 한 번은 옛 기록(이름·PIN·마지막 밴드)에서 채운다 */
 function mineIds(){
@@ -523,6 +542,12 @@ function renderBandList(){
   $("#mineWrap").hidden = !mine.length;
   const mb = $("#mineList"); mb.innerHTML = "";
   mine.forEach(b => mb.appendChild(bandRow(b, mineForget)));
+  const hm = $("#homeMine"), hml = $("#homeMineList");
+  if (hm && hml){
+    hm.hidden = !mine.length;
+    hml.innerHTML = "";
+    mine.forEach(b => hml.appendChild(bandRow(b, null)));
+  }
 }
 
 /* ═══ 밴드 열기 ═══ */
@@ -760,7 +785,7 @@ function renderAll(){
   if (!B) $("#view-lock").hidden = true;
   if (inBand) $("#view-lock").hidden = true;
   $("#subtitle").textContent = inBand ? "" : "합주 일정 · 합주곡 · 이력";
-  if (!inBand) return;
+  if (!inBand){ renderBandList(); return; }
 
   ["sched","song","hist"].forEach(k => {
     $("#tab-" + k).setAttribute("aria-selected", String(tab === k));
@@ -1307,6 +1332,7 @@ $("#nb_make").onclick = async () => {
     await bt.commit();
     if (pin) ls("bm_key:" + bid, key);
     if (who) ls("bm_me:" + bid, who);
+    if (typeof adminTrack === "function") adminTrack("bands", bid);
     closeModal("bandNewModal");
     await openBand(bid);
     setStatus("만들었어요 ✓ 시간표를 만들어 보세요", "ok");
@@ -1460,6 +1486,8 @@ $("#bs_delete").onclick = async () => {
     for (const col of ["songs", "sessions"]){ const qs = await src.collection(col).get(); for (const d of qs.docs) await d.ref.delete(); }
     await src.delete();
     await db.collection("bands").doc(bid).delete();
+    ls("bm_mine", JSON.stringify(mineIds().filter(x => x !== bid)));
+    if (typeof adminUntrack === "function") adminUntrack("bands", bid);
     closeModal("tSetModal"); closeBand(); ls("bm_last", ""); setUrl(); renderAll();
     setStatus("지웠어요", "ok");
   } catch(e){ setStatus("실패 — " + errText(e), "err"); }
