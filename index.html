@@ -874,7 +874,7 @@ function parseLinks(s){
   out.forEach(o => { if (!o.label){ const n = siteName(o.url); count[n] = (count[n] || 0) + 1; o.label = n + (count[n] > 1 ? " " + count[n] : ""); } });
   return out;
 }
-/* 파트 — "기타1: 송명재 / 보컬: 이경하" 를 [파트, 이름] 알약으로 */
+/* 파트 — "기타1: 이름 / 보컬: 이름" 를 [파트, 이름] 알약으로 */
 function parseParts(str){
   const out = [];
   String(str || "").split(/[\/\n]+/).map(x => x.trim()).filter(Boolean).forEach(piece => {
