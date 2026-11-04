@@ -82,8 +82,6 @@ a.lnk::before{content:"▶";font-size:9px}
   border-radius:999px;padding:2px 8px;vertical-align:2px;white-space:nowrap}
 .absline{font-size:13.5px}
 .absline .why{color:var(--muted)}
-.lockcard{text-align:center;padding:30px 18px}
-.lockcard input{max-width:180px;text-align:center;letter-spacing:.3em;margin:0 auto}
 .bandrow{display:flex;align-items:center;gap:8px}
 /* 설정 창 — 시간표 · 밴드 두 묶음 + 접힌 지우기 (2026-09-30) */
 .cfg-h{font-size:15px;font-weight:800;letter-spacing:-.02em;margin:18px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
@@ -149,17 +147,6 @@ body:not(.is-admin) .adm{display:none!important}
   </div>
 </section>
 
-<!-- PIN 이 걸린 밴드 -->
-<section id="view-lock" hidden>
-  <div class="card lockcard">
-    <div style="font-size:30px;line-height:1">🔒</div>
-    <h2 style="margin:12px 0 4px;font-size:17px" id="lockTitle">잠긴 밴드예요</h2>
-    <p class="hint" style="margin:0 0 16px" id="lockHint">단톡방에 공유된 PIN을 넣어주세요. 이 기기에서는 한 번만 넣으면 돼요.</p>
-    <input type="text" id="lockPin" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="PIN">
-    <button class="btn primary wide" id="lockGo" type="button" style="margin-top:12px">열기</button>
-  </div>
-</section>
-
 <section id="view-band" hidden>
   <div class="tabs" role="tablist">
     <button role="tab" id="tab-sched" type="button" aria-selected="true">📅 일정</button>
@@ -193,7 +180,7 @@ body:not(.is-admin) .adm{display:none!important}
       <h2 style="margin:0 0 4px">아직 시간표가 없어요</h2>
       <p class="hint">시간표를 만들고 후보 날짜를 고르면, 멤버들이 ○ △ ✕ 로 넣어요.</p>
       <button class="btn primary wide" id="tNew0" type="button">＋ 시간표 만들기</button>
-      <button class="btn ghost" id="tNoneSet" type="button" style="margin-top:8px">⚙ 밴드 설정 (멤버·PIN)</button>
+      <button class="btn ghost" id="tNoneSet" type="button" style="margin-top:8px">⚙ 밴드 설정 (멤버)</button>
     </div>
     <div data-sched="sheet"></div>
   </div>
@@ -283,15 +270,13 @@ body:not(.is-admin) .adm{display:none!important}
     </div>
     <label class="fld"><span>밴드 이름</span><input type="text" id="nb_name" maxlength="20" placeholder="예: 애쉬만루트"></label>
     <label class="fld"><span>내 이름</span><input type="text" id="nb_me" maxlength="12" placeholder="예: 베니"></label>
-    <label class="fld adm"><span>PIN (선택) — 숫자 4~8자리. 걸면 PIN 아는 사람만 들어와요</span>
-      <input type="text" id="nb_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="비우면 누구나"></label>
     <button class="btn primary wide" id="nb_make" type="button" style="margin-top:12px">만들기 →</button>
   </div>
 </div>
 
 <!-- ══════════ 설정 — 시간표 + 밴드를 한 창에 ══════════
-     (2026-09-30 Benny: "설정 창 구조가 이상해. PIN 바꾸는 것도 한 번 더 들어가야 하고, 멤버도 그렇고")
-     예전: 시간표 설정 → '⚙ 밴드 설정(멤버·PIN)' 을 한 번 더 눌러야 했다. 이제 한 창에서 바로 -->
+     (2026-09-30 Benny: "설정 창 구조가 이상해")
+     예전: 시간표 설정 → '⚙ 밴드 설정' 을 한 번 더 눌러야 했다. 이제 한 창에서 바로 -->
 <div class="modal" id="tSetModal" hidden>
   <div class="sheet tall" role="dialog" aria-modal="true" style="max-width:460px">
     <div class="spread">
@@ -319,13 +304,6 @@ body:not(.is-admin) .adm{display:none!important}
     <h3 class="cfg-h">🎸 밴드</h3>
     <label class="fld"><span>밴드 이름</span>
       <div class="row nowrap"><input type="text" id="bs_name" maxlength="20" style="flex:1 1 auto"><button class="btn" id="bs_nameSave" type="button">저장</button></div></label>
-    <div class="fld adm"><span>PIN</span>
-      <p class="hint" id="bs_pinState" style="margin:0 0 8px"></p>
-      <div class="row nowrap">
-        <input type="text" id="bs_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="새 PIN (비우면 해제)" style="flex:1 1 auto">
-        <button class="btn" id="bs_pinSave" type="button">바꾸기</button>
-      </div>
-    </div>
 
     <details class="cfg-danger">
       <summary>지우기</summary>
@@ -415,13 +393,13 @@ body:not(.is-admin) .adm{display:none!important}
 <script src="../when/sched.js?v=2026-10-30a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
-   이 페이지가 하는 것: 밴드 목록 · PIN · 시간표 전환 · 합주곡 · 합주 이력.
+   이 페이지가 하는 것: 밴드 목록 · 시간표 전환 · 합주곡 · 합주 이력.
    저장소 (Firestore benny-apps, 규칙: benny-apps/firestore.rules)
-     bands/{bid}                 이름·잠김 — id 를 아는 사람만(링크). 전체 목록은 막힘 (2026-10-26)
-     bandData/{key}              멤버 목록. key = sha256(bid + ":" + PIN) → PIN 을 모르면 경로를 모른다
+     bands/{bid}                 이름 (locked 는 규칙이 요구해서 늘 false) — id 를 아는 사람만(링크). 전체 목록은 막힘 (2026-10-26)
+     bandData/{key}              멤버 목록. key = sha256(bid + ":")
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-10-30a";
+const BUILD = "2026-11-04a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -447,14 +425,15 @@ function bandOf(id){ return BANDS.find(b => b.id === id) || null; }
 function bmMembers(){ return (BD && BD.members) || []; }
 function ls(k, v){ try { if (v === undefined) return localStorage.getItem(k) || ""; v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e){ return ""; } }
 
-async function keyOf(bid, pin){
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bid + ":" + String(pin || "")));
+/* 자료 자리 = sha256(밴드 id + ":") — PIN 을 없애도 자리는 그대로 (Music Lab bm_key 도 같은 계산, 2026-11-04) */
+async function keyOf(bid){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(bid + ":"));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 function newId(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 /* 밴드 id = 링크의 열쇠 → 추측 못 하게 무작위 20자 (2026-10-26, 예전 band1·시각 기반 id 는 맞혀 볼 수 있었다) */
 function bandId(){ return "b" + Array.from(crypto.getRandomValues(new Uint8Array(20)), x => (x % 36).toString(36)).join(""); }
-function pinOk(p){ return /^\d{4,8}$/.test(p); }
+try { Object.keys(localStorage).filter(k => k.startsWith("bm_key:")).forEach(k => localStorage.removeItem(k)); } catch(e){}   // 옛 PIN 기억 치우기
 function setUrl(){
   const q = new URLSearchParams();
   if (B) q.set("b", B);
@@ -499,12 +478,12 @@ function watchBands(){
     });
   }
 }
-/* 이 기기의 '내 밴드' — 들어간 적 있는 밴드 id 목록 (bm_mine). 처음 한 번은 옛 기록(이름·PIN·마지막 밴드)에서 채운다 */
+/* 이 기기의 '내 밴드' — 들어간 적 있는 밴드 id 목록 (bm_mine). 처음 한 번은 옛 기록(이름·마지막 밴드)에서 채운다 */
 function mineIds(){
   let raw = ls("bm_mine");
   if (!raw){
     const seed = [];
-    try { for (let i = 0; i < localStorage.length; i++){ const m = /^bm_(?:me|key|t):(.+)$/.exec(localStorage.key(i) || ""); if (m && localStorage.getItem(localStorage.key(i)) && !seed.includes(m[1])) seed.push(m[1]); } } catch(e){}
+    try { for (let i = 0; i < localStorage.length; i++){ const m = /^bm_(?:me|t):(.+)$/.exec(localStorage.key(i) || ""); if (m && localStorage.getItem(localStorage.key(i)) && !seed.includes(m[1])) seed.push(m[1]); } } catch(e){}
     if (ls("bm_last") && !seed.includes(ls("bm_last"))) seed.unshift(ls("bm_last"));
     if (!seed.length) return [];
     ls("bm_mine", JSON.stringify(seed)); raw = ls("bm_mine");
@@ -512,12 +491,12 @@ function mineIds(){
   try { const a = JSON.parse(raw); return Array.isArray(a) ? a : []; } catch(e){ return []; }
 }
 function mineAdd(bid){ const a = mineIds().filter(x => x !== bid); a.unshift(bid); ls("bm_mine", JSON.stringify(a.slice(0, 20))); }
-/** 이 기기에서만 잊기 — 밴드·데이터는 그대로. PIN·이름·고른 시간표 기억도 지운다 */
+/** 이 기기에서만 잊기 — 밴드·데이터는 그대로. 이름·고른 시간표 기억도 지운다 */
 async function mineForget(bid){
   const b = bandOf(bid);
-  if (!await ask({ title: "이 기기 목록에서 지울까요?", text: "‘" + (b ? b.name : "이 밴드") + "’ — 밴드는 그대로 있고, 다시 들어가려면 링크(와 PIN)가 필요해요.", ok: "지우기" })) return;
+  if (!await ask({ title: "이 기기 목록에서 지울까요?", text: "‘" + (b ? b.name : "이 밴드") + "’ — 밴드는 그대로 있고, 다시 들어가려면 링크가 필요해요.", ok: "지우기" })) return;
   ls("bm_mine", JSON.stringify(mineIds().filter(x => x !== bid)));
-  ["bm_key:", "bm_me:", "bm_t:"].forEach(k => ls(k + bid, ""));
+  ["bm_me:", "bm_t:"].forEach(k => ls(k + bid, ""));
   if (ls("bm_last") === bid) ls("bm_last", "");
   if (bid === B){ closeModal("bandModal"); afterNav(goHome); }
   else renderBandList();
@@ -526,7 +505,7 @@ function bandRow(b, onDel){
   const row = document.createElement("div"); row.className = "pkrow";
   const go = document.createElement("button");
   go.type = "button"; go.className = "pk1" + (b.id === B ? " on" : "");
-  go.textContent = (b.locked ? "🔒 " : "") + b.name;
+  go.textContent = b.name;
   go.onclick = () => { if (!$("#bandAllModal").hidden) closeModal("bandAllModal"); if (!$("#bandModal").hidden) closeModal("bandModal"); if (b.id !== B) openBand(b.id); };
   row.appendChild(go);
   if (onDel){
@@ -557,23 +536,16 @@ function closeBand(){
   B = ""; KEY = ""; BD = null; SCHEDS = []; SONGS = []; SESS = [];
   M = ""; ST = { meet:null }; me = ""; dirty = false;
 }
-async function openBand(bid, pin){
+async function openBand(bid){
   if (dirty && !await ask({ title: "저장하지 않은 표시가 있어요", text: "그래도 다른 밴드로 옮길까요?", ok: "옮기기" })) return;
   closeBand();
   B = bid;
   const b = bandOf(bid) || await db.collection("bands").doc(bid).get().then(s => s.exists ? Object.assign({ id: s.id }, s.data()) : null).catch(() => null);
   if (!b){ B = ""; renderAll(); setStatus("없는 밴드예요 — 링크를 다시 확인해 주세요", "err"); return; }
   watchBand(bid);
-  let key = pin !== undefined ? await keyOf(bid, pin) : (b.locked ? ls("bm_key:" + bid) : await keyOf(bid, ""));
-  if (!key){ renderAll(); showLock(b); return; }
+  const key = await keyOf(bid);
   const snap = await db.collection("bandData").doc(key).get().catch(() => null);
-  if (!snap || !snap.exists){
-    ls("bm_key:" + bid, "");
-    renderAll();
-    if (b.locked){ showLock(b, pin !== undefined ? "PIN이 맞지 않아요" : "PIN이 바뀌었어요 — 다시 넣어주세요"); return; }
-    setStatus("밴드 데이터를 찾지 못했어요", "err"); return;
-  }
-  if (b.locked) ls("bm_key:" + bid, key);
+  if (!snap || !snap.exists){ renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return; }
   KEY = key; BD = snap.data();
   ls("bm_last", bid); mineAdd(bid);
   me = ls("bm_me:" + bid);
@@ -601,14 +573,6 @@ async function openBand(bid, pin){
   }));
   renderAll(); setUrl();
 }
-function showLock(b, msg){
-  $("#view-lock").hidden = false; $("#view-band").hidden = true; $("#view-none").hidden = true;
-  $("#lockTitle").textContent = "🔒 " + b.name;
-  $("#lockHint").textContent = msg || "단톡방에 공유된 PIN을 넣어주세요. 이 기기에서는 한 번만 넣으면 돼요.";
-  $("#lockHint").style.color = msg ? "var(--warn)" : "";
-  $("#lockPin").value = ""; setTimeout(() => { try { $("#lockPin").focus(); } catch(e){} }, 100);
-}
-
 /* ═══ 시간표 ═══ */
 async function openSched(id, quiet){
   if (id === M) return;
@@ -775,15 +739,13 @@ $("#whoBtn").onclick = openWho;
 
 function renderAll(){
   const b = bandOf(B);
-  $("#bandName").textContent = b ? (b.locked ? "🔒 " : "") + b.name : "🎸 밴드 고르기";
+  $("#bandName").textContent = b ? b.name : "🎸 밴드 고르기";
   $("#bandBtn").title = b ? b.name + " — 다른 밴드 고르기" : "밴드 고르기";
   document.title = b ? b.name + " — 밴드매니저" : "밴드매니저";
   $("#foot").textContent = "밴드매니저 " + BUILD + (document.body.classList.contains("is-admin") ? " · 관리자" : "") + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
   const inBand = !!(B && KEY);
   $("#view-band").hidden = !inBand;
   $("#view-none").hidden = !!B || !bandsReady;
-  if (!B) $("#view-lock").hidden = true;
-  if (inBand) $("#view-lock").hidden = true;
   $("#subtitle").textContent = inBand ? "" : "합주 일정 · 합주곡 · 이력";
   if (!inBand){ renderBandList(); return; }
 
@@ -956,7 +918,7 @@ function songCard(s){
   if (s.status !== "연습중" && s.key) badges.appendChild(Object.assign(document.createElement("span"), { className: "pill", textContent: s.key }));
   if (s.tuning) badges.appendChild(Object.assign(document.createElement("span"), { className: "pill amber", textContent: s.tuning }));
   /* 🎧 연습 = Music Lab 의 그 곡 (2026-10-27 Benny "밴드매니저랑 Music Lab 둘이 sync").
-     ?bm=밴드 id 로 Music Lab 이 이 밴드 친구로 로그인(PIN 없이), #yt/영상 id 로 그 곡을 엶 — 아직 분석 안 했으면 Music Lab 합주곡 줄에서 ＋ 분석 */
+     ?bm=밴드 id 로 Music Lab 이 이 밴드 친구로 로그인, #yt/영상 id 로 그 곡을 엶 — 아직 분석 안 했으면 Music Lab 합주곡 줄에서 ＋ 분석 */
   const yt = (/(?:youtu\.be\/|[?&]v=|\/shorts\/)([\w-]{11})/.exec(s.links || "") || [])[1];
   if (yt){
     const a = document.createElement("a"); a.className = "lnk"; a.target = "_blank"; a.rel = "noopener"; a.textContent = "🎧 연습";
@@ -1320,17 +1282,15 @@ $("#h_delete").onclick = async () => {
 
 /* ═══ 밴드 만들기 · 설정 ═══ */
 $("#nb_make").onclick = async () => {
-  const name = $("#nb_name").value.trim(), who = $("#nb_me").value.trim(), pin = $("#nb_pin").value.trim();
+  const name = $("#nb_name").value.trim(), who = $("#nb_me").value.trim();
   if (!name){ setStatus("밴드 이름을 적어주세요", "err"); return; }
-  if (pin && !pinOk(pin)){ setStatus("PIN은 숫자 4~8자리예요", "err"); return; }
   const btn = $("#nb_make"); if (btn.disabled) return; btn.disabled = true;
   try {
-    const bid = bandId(), key = await keyOf(bid, pin);
+    const bid = bandId(), key = await keyOf(bid);
     const bt = db.batch();
-    bt.set(db.collection("bands").doc(bid), { name, locked: !!pin, createdAt: FV.serverTimestamp() });
+    bt.set(db.collection("bands").doc(bid), { name, locked: false, createdAt: FV.serverTimestamp() });
     bt.set(db.collection("bandData").doc(key), { band: bid, members: who ? [who] : [], createdAt: FV.serverTimestamp() });
     await bt.commit();
-    if (pin) ls("bm_key:" + bid, key);
     if (who) ls("bm_me:" + bid, who);
     if (typeof adminTrack === "function") adminTrack("bands", bid);
     closeModal("bandNewModal");
@@ -1342,13 +1302,9 @@ $("#nb_make").onclick = async () => {
 function renderBandSet(){
   const b = bandOf(B) || {};
   $("#bs_name").value = b.name || "";
-  $("#bs_pinState").textContent = b.locked ? "🔒 PIN이 걸려 있어요. 새로 넣으면 바뀌고, 비우고 누르면 풀려요." : "PIN 없음 — 링크를 아는 누구나 들어와요.";
-  $("#bs_pin").value = "";
-  $("#bs_pin").placeholder = b.locked ? "새 PIN (비우면 해제)" : "PIN 숫자 4~8자리";
-  $("#bs_pinSave").textContent = b.locked ? "바꾸기" : "걸기";
   renderBsMembers();
 }
-/** 멤버 목록만 다시 (추가·빼기가 스냅샷으로 들어올 때 — 입력 중인 PIN·이름 칸은 건드리지 않게) */
+/** 멤버 목록만 다시 (추가·빼기가 스냅샷으로 들어올 때 — 입력 중인 이름 칸은 건드리지 않게) */
 function renderBsMembers(){
   const box = $("#bs_members"); box.innerHTML = "";
   const list = bmMembers(), on = !!(M && meet()), off = on ? offList() : [];
@@ -1437,45 +1393,6 @@ $("#bs_nameSave").onclick = () => {
   const name = $("#bs_name").value.trim(); if (!name) return;
   bandRef().update({ name }).then(() => setStatus("밴드 이름 저장됨", "ok")).catch(e => setStatus("실패 — " + errText(e), "err"));
 };
-/** PIN 바꾸기 = 데이터를 새 열쇠 아래로 옮긴다 (열쇠가 PIN 에서 나오니까) */
-async function copyTree(fromRef, toRef){
-  const d = await fromRef.get();
-  if (d.exists) await toRef.set(d.data());
-}
-$("#bs_pinSave").onclick = async () => {
-  const pin = $("#bs_pin").value.trim();
-  if (pin && !pinOk(pin)){ setStatus("PIN은 숫자 4~8자리예요", "err"); return; }
-  if (!await ask(pin ? { title: "PIN 을 바꿀까요?", text: "멤버들에게 새 PIN 을 알려주세요.", ok: "바꾸기" }
-                     : { title: "PIN 을 풀까요?", text: "링크를 아는 누구나 들어와요.", ok: "풀기" })) return;
-  const btn = $("#bs_pinSave"); btn.disabled = true;
-  setStatus("옮기는 중…");
-  try {
-    const oldKey = KEY, newKey = await keyOf(B, pin);
-    if (newKey === oldKey){ setStatus("지금과 같은 PIN이에요"); return; }
-    const src = db.collection("bandData").doc(oldKey), dst = db.collection("bandData").doc(newKey);
-    await copyTree(src, dst);
-    for (const col of ["songs", "sessions"]){
-      const qs = await src.collection(col).get();
-      for (const d of qs.docs) await dst.collection(col).doc(d.id).set(d.data());
-    }
-    const ss = await src.collection("scheds").get();
-    for (const s of ss.docs){
-      await dst.collection("scheds").doc(s.id).set(s.data());
-      const ps = await s.ref.collection("people").get();
-      for (const p of ps.docs) await dst.collection("scheds").doc(s.id).collection("people").doc(p.id).set(p.data());
-    }
-    await bandRef().update({ locked: !!pin });
-    /* 옛 열쇠 아래는 지운다 (저장 기록 log 는 규칙상 못 읽어서 남는다) */
-    for (const s of ss.docs){ const ps = await s.ref.collection("people").get(); for (const p of ps.docs) await p.ref.delete(); await s.ref.delete(); }
-    for (const col of ["songs", "sessions"]){ const qs = await src.collection(col).get(); for (const d of qs.docs) await d.ref.delete(); }
-    await src.delete();
-    ls("bm_key:" + B, pin ? newKey : "");
-    const bid = B; closeModal("tSetModal");
-    await openBand(bid);
-    setStatus(pin ? "🔒 PIN을 바꿨어요" : "PIN을 풀었어요", "ok");
-  } catch(e){ setStatus("실패 — " + errText(e), "err"); }
-  finally { btn.disabled = false; }
-};
 $("#bs_delete").onclick = async () => {
   const b = bandOf(B); if (!b) return;
   if (!await ask({ title: "밴드를 통째로 지울까요?", text: "시간표·곡·이력까지 전부 사라지고 되돌릴 수 없어요.", ok: "지우기", danger: true, type: b.name })) return;
@@ -1496,7 +1413,7 @@ $("#bs_delete").onclick = async () => {
 /* ═══ 이벤트 ═══ */
 MODAL_OPEN.bandModal = () => { $("#bandHomeBtn").hidden = !B; renderBandList(); };
 MODAL_OPEN.tSetModal = () => { tsFor = null; renderBandSet(); refreshSetModal(); };
-MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_pin").value = ""; $("#nb_me").value = me || ""; };
+MODAL_OPEN.bandNewModal = () => { $("#nb_name").value = ""; $("#nb_me").value = me || ""; };
 $("#bandBtn").onclick = () => openModal("bandModal");
 $("#bandNewBtn").onclick = () => { closeModal("bandModal"); openModal("bandNewModal"); };
 $("#bandIntroBtn").onclick = async () => {
@@ -1521,13 +1438,11 @@ $("#bandHomeBtn").onclick = async () => {
   if (dirty && !await ask({ title: "저장하지 않은 표시가 있어요", text: "그래도 나갈까요?", ok: "나가기" })) return;
   closeModal("bandModal"); afterNav(goHome);
 };
-$("#lockGo").onclick = () => { const p = $("#lockPin").value.trim(); if (!p) return; openBand(B, p); };
-$("#lockPin").addEventListener("keydown", e => { if (e.key === "Enter") $("#lockGo").click(); });
 ["sched", "song", "hist"].forEach(k => $("#tab-" + k).onclick = () => setTab(k));
 $("#tNew0").onclick = newSched;
 $("#mPart").onclick = editPart;
 $("#tEdit").onclick = () => openModal("tSetModal");
-$("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버·PIN 은 고칠 수 있게
+$("#tNoneSet").onclick = () => openModal("tSetModal");          // 시간표가 없을 때도 멤버는 고칠 수 있게
 /* 결과 창 = '📌 일정 확정' — 직접 고르기(표)를 위로, 후보 목록은 아래로 (2026-10-01 Benny: "후보가 너무 많다")
    여는 곳은 시간표 카드의 📌 줄. 모두 보기 옆 버튼은 '📅 날짜 관리'(날짜 넣고 빼기·요일별 시간) */
 $("#mFixed").onclick = () => openModal("heatModal");
