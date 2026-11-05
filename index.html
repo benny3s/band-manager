@@ -409,10 +409,12 @@ function SCHED_ME_KEY(){ return "bm_me:" + B; }                // 이름은 밴�
 function SCHED_NS(){ return "bm:" + KEY.slice(0, 16); }         // 지난 화면 캐시도 밴드마다 따로 (시간표 id 가 겹친다)
 /* 이력의 '예정' 합주도 표·달력에 📌 로 (2026-09-30 Benny: "10/4 합주가 잡혀있는데 달력에는 표시가 안되어있어")
    이력에 직접 넣은 합주는 📌 정한 것(fixed)에 없어서 안 보였다. 표시만 하고 fixed 는 건드리지 않는다 */
+/* 📌 를 풀면서 곡·메모 때문에 이력에 남긴 회차의 auto — 이력에는 '예정' 으로 두되 📌 로는 안 띄운다. '|' 가 없어 autoOf 는 시간표와 이어진 회차로 읽지 않는다 */
+const UNPINNED = "-";
 function extraFixes(){
   /* 이 시간표가 📌 로 만든 회차(auto = 이 시간표)는 빼다 — 그건 fixes() 가 이미 보여 주고,
      📌 해제 직후 지워지는 중인 회차가 '이력 확정' 으로 잠깐 보이는 걸 막는다 (2026-10-01 검토) */
-  return SESS.filter(s => s.status === "예정" && /^\d{4}-\d{2}-\d{2}$/.test(s.date || "") && !(M && s.auto && s.auto.indexOf(M + "|") === 0))
+  return SESS.filter(s => s.status === "예정" && /^\d{4}-\d{2}-\d{2}$/.test(s.date || "") && s.auto !== UNPINNED && !(M && s.auto && s.auto.indexOf(M + "|") === 0))
     .map(s => /^\d{2}:\d{2}$/.test(s.from || "") && /^\d{2}:\d{2}$/.test(s.to || "") ? s.date + " " + s.from + "~" + s.to : s.date);
 }
 
@@ -531,6 +533,7 @@ function renderBandList(){
 
 /* ═══ 밴드 열기 ═══ */
 function closeBand(){
+  openSeq++;                          // 여는 중이던 openBand 는 여기서 그만둔다
   bandUnsub.forEach(f => { try { f(); } catch(e){} }); bandUnsub = [];
   unwatch();
   B = ""; KEY = ""; BD = null; SCHEDS = []; SONGS = []; SESS = [];
@@ -549,7 +552,7 @@ async function openBand(bid){
   const key = await keyOf(bid);
   const snap = await db.collection("bandData").doc(key).get().catch(() => null);
   if (seq !== openSeq) return;
-  if (!snap || !snap.exists){ renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return; }
+  if (!snap || !snap.exists){ B = ""; renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return; }
   KEY = key; BD = snap.data();
   ls("bm_last", bid); mineAdd(bid);
   me = ls("bm_me:" + bid);
@@ -644,10 +647,11 @@ $("#tn_go").onclick = async () => {
 $("#tn_name").addEventListener("keydown", e => { if (e.key === "Enter") $("#tn_go").click(); });
 /** 밴드 멤버 ↔ 시간표 참여자를 맞춘다 — 빠진 멤버는 시간표에 넣고, 시간표에서 새로 생긴 이름은 멤버로 */
 const syncTried = new Set();
-/** 맞추기에서 뺀다 — gone: 밴드에서 빠진 이름(시간표에 남아 있어도 다시 넣지 않게) · added: 시간표에 새로 넣지 않을 이름(이름 바꾸기의 새 이름) */
+/** 맞추기에서 뺀다 — gone: 밴드에서 빠진 이름(시간표에 남아 있어도 다시 넣지 않게) · added: 지금 시간표에 새로 넣지 않을 이름(이름 바꾸기의 새 이름).
+    다른 시간표까지 막으면 옛 이름 문서가 없던 시간표에 새 이름이 새로고침 전까지 안 생긴다 (맞추기는 지금 시간표만 돈다) */
 function holdSync(gone, added){
   gone.forEach(n => syncTried.add(KEY + "band|" + n));
-  added.forEach(n => SCHEDS.forEach(s => syncTried.add(KEY + s.id + "|" + n)));
+  added.forEach(n => syncTried.add(KEY + M + "|" + n));
 }
 function syncMembers(){
   /* ⚠️ 화면의 ST 는 지난 화면 캐시일 수 있다 → **서버에서 막 받은 것(buildST)** 으로만 맞춘다 */
@@ -701,7 +705,7 @@ async function releaseExtraFix(t){
   hit.forEach(s => dataRef().collection("sessions").doc(s.id).delete().catch(e => setStatus("이력에서 못 지웠어요 — " + errText(e), "err")));
   return true;
 }
-function onFixesChanged(before, after, notes){
+async function onFixesChanged(before, after, notes){
   const tag = t => M + "|" + t;
   notes = notes || {};
   /* 시간표에서 단 📌 코멘트 → 이력 회차의 fixNote (직접 쓰는 메모와 따로 · 2026-10-01 Benny "살짝 구분") */
@@ -717,6 +721,9 @@ function onFixesChanged(before, after, notes){
   after.filter(t => before.indexOf(t) < 0).forEach(t => {
     const p = pickParse(t); if (!p) return;
     if (SESS.some(s => s.auto === tag(t))) return;
+    /* 곡·메모 때문에 남겨 둔 회차면 새로 만들지 않고 다시 잇는다 */
+    const kept = SESS.find(s => s.auto === UNPINNED && s.status === "예정" && sessKey(s) === t);
+    if (kept){ dataRef().collection("sessions").doc(kept.id).update({ auto: tag(t), fixNote: notes[t] || "" }).catch(e => setStatus("이력을 못 고쳤어요 — " + errText(e), "err")); return; }
     const absent = [];
     members().forEach(n => {
       const v = (hoursOf()[n] || {})[p.d];
@@ -730,16 +737,22 @@ function onFixesChanged(before, after, notes){
       status: "예정", absent, songs: [], memo: "", fixNote: notes[t] || "", added: todayIso(), auto: tag(t)
     }).then(() => setStatus("🎸 이력에 " + fmtFull(p.d) + " " + (notes[t] || "합주") + " 넣었어요", "ok")).catch(e => setStatus("이력에 못 넣었어요 — " + errText(e), "err"));
   });
+  const busy = [];
   before.filter(t => after.indexOf(t) < 0).forEach(t => {
     SESS.filter(s => s.auto === tag(t) && s.status === "예정").forEach(s => {
       const ref = dataRef().collection("sessions").doc(s.id);
       if (!(s.songs || []).length && !s.memo){ ref.delete().catch(() => {}); return; }
-      /* 합주곡·메모를 적어 둔 회차는 묻고 지운다. 남기면 시간표와 연결(auto)만 끊어 이력의 '예정' 으로 둔다 (2026-11-05 검토) */
-      ask({ title: "합주 이력('예정')도 지울까요?", text: fmtPick(t) + "\n이 회차에 적어 둔 합주곡·메모도 같이 지워져요. 취소하면 이력에 남겨요.", ok: "지우기", danger: true })
-        .then(yes => yes ? ref.delete() : ref.update({ auto: "" }))
-        .catch(e => setStatus("이력을 못 고쳤어요 — " + errText(e), "err"));
+      busy.push({ t, ref });
     });
   });
+  /* 합주곡·메모를 적어 둔 회차는 묻고 지운다. 남기면 시간표와 연결(auto)을 끊고 표식을 달아 이력의 '예정' 으로만 둔다 (2026-11-05 검토)
+     창은 한 번에 하나다(새 창이 앞 창을 '아니오' 로 닫는다) → 하나씩 기다린다. 묻는 사이 밴드를 나가도 되게 ref 는 위에서 잡아 둔다 */
+  for (const { t, ref } of busy){
+    try {
+      if (await ask({ title: "합주 이력('예정')도 지울까요?", text: fmtPick(t) + "\n이 회차에 적어 둔 합주곡·메모도 같이 지워져요. 취소하면 이력에 남겨요.", ok: "지우기", danger: true })) await ref.delete();
+      else await ref.update({ auto: UNPINNED });
+    } catch(e){ setStatus("이력을 못 고쳤어요 — " + errText(e), "err"); }
+  }
 }
 
 /* ═══ 화면 ═══ */
@@ -1267,12 +1280,14 @@ async function syncSchedFix(a, mode, newKey){
     const snap = await tx.get(ref); if (!snap.exists) return;
     const m = snap.data();
     const list = String(m.fixed || "").split(/\s*,\s*/).filter(t => t && t !== a.key);
-    const notes = Object.assign({}, m.fixNotes || {}), note = notes[a.key] || "";
+    const notes = cleanFixNotes(m.fixNotes), note = notes[a.key] || "";   // 옛 JSON 글자도 map 으로 (규칙이 map 만 받는다)
     delete notes[a.key];
     let picks = (m.picks || []).slice();
     if (mode === "move"){ list.push(newKey); if (note) notes[newKey] = note; }
     if (mode === "pick" && picks.length < 20){ picks = Array.from(new Set(picks.concat([a.key]))).sort(); if (note) notes[a.key] = note; }
-    tx.update(ref, { fixed: Array.from(new Set(list)).sort().join(", "), fixNotes: notes, picks, updatedAt: FV.serverTimestamp() });
+    const fixed = Array.from(new Set(list)).sort().join(", ");
+    if (fixed.length > FIXED_MAX) throw new Error(FIXED_FULL);            // 규칙이 str(fixed, 400) — 거절당하기 전에 알린다
+    tx.update(ref, { fixed, fixNotes: cleanFixNotes(notes), picks, updatedAt: FV.serverTimestamp() });
   });
 }
 /* 시간 칸(type=time)은 24:00 을 못 담는다 → 칸에는 00:00, 저장할 때 끝이 00:00 이면 24:00 (싱크룸 22–24) */
@@ -1400,6 +1415,10 @@ async function renameMember(from, to){
     /* 시간표 people 은 아래에서 하나씩 고친다 → 그 사이 syncMembers 가 옛 이름을 되살리거나 새 이름 문서를 또 만들지 않게 */
     holdSync([from], [to]);
     if (BD) BD.members = a;
+    /* me 를 먼저 바꾼다 — 사람 문서를 고칠 때마다 absorb → loadMine 이 도는데, 옛 이름이면 내 칸이 비고
+       그 빈 칸으로 한 날을 저장하면 다른 날 응답이 지워진다 (2026-11-05 재검토) */
+    const wasMe = me === from, draft = dirty;
+    if (wasMe){ me = to; saveMe(to); }
     for (const s of SCHEDS){
       const ps = await SCHED_COL().doc(s.id).collection("people").where("name", "==", from).get();
       for (const d of ps.docs) await d.ref.update({ name: to });
@@ -1416,18 +1435,20 @@ async function renameMember(from, to){
       if (!(h.absent || []).some(x => parseAbs(x, [from]).name === from)) continue;
       await sessRef(h.id).update({ absent: h.absent.map(x => { const a = parseAbs(x, [from]); return a.name === from ? fmtAbs(to, a.why) : x; }) });
     }
-    if (me === from){ me = to; saveMe(to); }
+    if (wasMe && me === to){ loadMine(!draft); renderAll(); }     // 저장 못 한 입력(draft)이 있었으면 loadMine 이 칸을 건드리지 않았다 — 그대로 둔다
     setStatus(from + " → " + to, "ok"); renderBandSet();
   } catch(e){ setStatus("실패 — " + errText(e), "err"); }
 }
 async function removeMember(n){
   try {
     await dataRef().update({ members: FV.arrayRemove(n) });
+    const wasMe = me === n;
+    if (wasMe){ me = ""; saveMe(""); }
     for (const s of SCHEDS){
       const ps = await SCHED_COL().doc(s.id).collection("people").where("name", "==", n).get();
       for (const d of ps.docs) await d.ref.delete();
     }
-    if (me === n){ me = ""; saveMe(""); }
+    if (wasMe && !me){ loadMine(true); renderAll(); }
     setStatus(n + " 님을 뺐어요", "ok"); renderBandSet();
   } catch(e){ setStatus("실패 — " + errText(e), "err"); }
 }

@@ -20,6 +20,15 @@ function bandOf(id){ return { id, name: id }; } function watchBand(){}
 async function keyOf(bid){ if (keyGate[bid]) await keyGate[bid]; return "K" + bid; }
 function ls(){ return ""; } function mineAdd(){} function setUrl(){}
 async function ask(){ return true; }
+/* sched.js 의 absorb → loadMine 처럼 — 사람 문서가 바뀔 때마다 내 칸을 서버 값으로 (입력 중이면 그대로) */
+var sel = {};
+function loadMine(force){
+  if (!force && dirty) return;
+  sel = {}; dirty = false; if (!me) return;
+  const pre = "bandData/" + KEY + "/scheds/" + M + "/people/";
+  for (const [p, d] of db.docs) if (p.startsWith(pre) && d.data.name === me) sel = d.data.hours || {};
+}
+function watchPeople(){ db.listeners.push({ kind: "col", path: "bandData/" + KEY + "/scheds/" + M + "/people", cb: () => loadMine() }); }
 `;
 function bandEnv(){
   const E = load([{ line: "const syncTried" }, { opt: "holdSync" }, { optLine: "let openSeq" }, "closeBand", "openBand", "syncMembers",
@@ -92,17 +101,95 @@ test("밴드 열기 중 다른 밴드를 열면 — 먼저 누른 밴드가 끼�
   eq(E.ctx.KEY, "Kb2", "KEY"); eq(E.ctx.B, "b2", "B");
   eq(E.db.listeners.filter(l => l.path.startsWith("bandData/Kb1")).length, 0, "b1 리스너");
 });
+test("밴드 여는 중 홈으로 나가면 — 옛 openBand 가 리스너를 붙이지 않는다", async () => {
+  const E = bandEnv();
+  let go; E.ctx.keyGate.b1 = new Promise(r => go = r);
+  const p1 = E.ctx.openBand("b1");
+  E.ctx.closeBand();
+  go(); await p1; await tick(5);
+  eq([E.ctx.B, E.ctx.KEY], ["", ""], "B·KEY");
+  eq(E.db.listeners.filter(l => l.path.startsWith("bandData/Kb1")).length, 0, "b1 리스너");
+});
+test("밴드 데이터가 없으면 — B 도 비운다", async () => {
+  const E = bandEnv();
+  await E.ctx.openBand("nope"); await tick(5);
+  eq(E.ctx.B, "", "B");
+  eq(E.status[E.status.length - 1][0], "err", "알림");
+});
+test("이름 바꾸기 — 옛 이름 문서가 없던 시간표에는 새 이름이 들어간다", async () => {
+  const E = bandEnv();
+  E.db.put("bandData/Kb1/scheds/m2", { title: "t2" });
+  ["B2", "C"].forEach((n, i) => E.db.put("bandData/Kb1/scheds/m2/people/p" + i, { name: n, hours: {}, notes: {} }));
+  await E.ctx.openBand("b1");
+  await E.ctx.renameMember("A", "A2"); await tick(5);
+  eq(E.adds(), [], "지금 시간표에는 새로 만들지 않음");
+  E.ctx.openSched("m2"); E.ctx.renderAll(); await tick(5);
+  eq(E.adds(), ["A2"], "member_add");
+});
+
+/* ── 멤버 이름 바꾸기 · 빼기 — 내 칸(me) ── */
+async function meEnv(name){
+  const E = bandEnv();
+  E.db.put("bandData/Kb1/scheds/m1/people/p0", { name: "A", hours: { d1: [10], d2: [11] }, notes: {} });
+  await E.ctx.openBand("b1");
+  E.run(`me = ${JSON.stringify(name)}; loadMine(true); watchPeople();`);
+  return E;
+}
+test("내 이름 바꾸기 — 끝나면 내 칸이 그대로 보인다 (비운 채 한 날만 저장하면 다른 날이 지워진다)", async () => {
+  const E = await meEnv("A");
+  await E.ctx.renameMember("A", "A2"); await tick(5);
+  eq(E.ctx.me, "A2", "me"); eq(E.ctx.sel, { d1: [10], d2: [11] }, "내 칸");
+});
+test("내 이름 바꾸기 — 저장 못 한 입력은 남는다", async () => {
+  const E = await meEnv("A");
+  E.run(`dirty = true; sel = { d1: [] };`);
+  await E.ctx.renameMember("A", "A2"); await tick(5);
+  eq(E.ctx.me, "A2", "me"); eq(E.ctx.dirty, true, "dirty"); eq(E.ctx.sel, { d1: [] }, "입력");
+});
+test("다른 사람 이름 바꾸기 — 내 입력을 건드리지 않는다", async () => {
+  const E = await meEnv("B2");
+  E.run(`dirty = true; sel = { d1: [] };`);
+  await E.ctx.renameMember("A", "A2"); await tick(5);
+  eq(E.ctx.me, "B2", "me"); eq(E.ctx.dirty, true, "dirty"); eq(E.ctx.sel, { d1: [] }, "입력");
+});
+test("나를 빼기 — me 가 비고 칸·입력도 비운다", async () => {
+  const E = await meEnv("C");
+  E.run(`dirty = true; sel = { d1: [] };`);
+  await E.ctx.removeMember("C"); await tick(5);
+  eq(E.ctx.me, "", "me"); eq(E.ctx.dirty, false, "dirty"); eq(E.ctx.sel, {}, "내 칸");
+});
+test("다른 사람 빼기 — 내 입력을 건드리지 않는다", async () => {
+  const E = await meEnv("B2");
+  E.run(`dirty = true; sel = { d1: [] };`);
+  await E.ctx.removeMember("C"); await tick(5);
+  eq(E.ctx.me, "B2", "me"); eq(E.ctx.dirty, true, "dirty"); eq(E.ctx.sel, { d1: [] }, "입력");
+});
 
 /* ── 📌 해제 → '예정' 회차 ── */
 function fixEnv(answer){
-  const E = load(["onFixesChanged", "sessKey", { code: `
+  const E = load(["onFixesChanged", "sessKey", "extraFixes", { optLine: "const UNPINNED" }, { code: `
 var asked = [];
 function fmtPick(t){ return t; }
+function pickParse(t){ return { d: t.slice(0, 10), from: 17, to: 20 }; }
 function ask(o){ asked.push(o); return Promise.resolve(${answer}); }
 ` }]);
   E.run(`M = "m1"; KEY = "K";`);
   return E;
 }
+/* 진짜 ask 처럼 — 창은 한 번에 하나, 새로 열면 앞 창은 false 로 닫힌다 (when/core.js askOpen) */
+function fixEnvOne(){
+  const E = load(["onFixesChanged", "sessKey", "extraFixes", { optLine: "const UNPINNED" }, { code: `
+var asked = [], askDone = null;
+function fmtPick(t){ return t; }
+function ask(o){ return new Promise(res => { if (askDone){ const r = askDone; askDone = null; r(false); } askDone = res; asked.push(o); }); }
+function answer(v){ const r = askDone; askDone = null; r(v); }
+` }]);
+  E.run(`M = "m1"; KEY = "K";`);
+  return E;
+}
+const sessNow = E => {   // 스냅샷이 온 것처럼
+  E.ctx.SESS = [...E.db.docs.keys()].filter(p => p.startsWith("bandData/K/sessions/")).map(p => Object.assign({ id: p.split("/").pop() }, E.db.get(p)));
+};
 function sess(E, id, extra){
   const s = Object.assign({ date: "2026-10-11", from: "17:00", to: "20:00", place: "", room: "", status: "예정",
                             absent: [], songs: [], memo: "", added: "2026-10-01", auto: "m1|" + T1, fixNote: "" }, extra);
@@ -118,12 +205,47 @@ test("📌 해제 — 곡·메모를 적은 회차는 묻는다 · '아니오' �
   const E = fixEnv(false); sess(E, "h1", { songs: ["s1"], memo: "m" });
   E.ctx.onFixesChanged([T1], [], {}); await tick(5);
   eq(E.ctx.asked.length, 1, "물음");
-  const s = E.db.get("bandData/K/sessions/h1"); ok(s, "지워짐"); eq(s.songs, ["s1"], "곡"); eq(s.auto, "", "auto");
+  const s = E.db.get("bandData/K/sessions/h1"); ok(s, "지워짐"); eq(s.songs, ["s1"], "곡");
+  ok(s.auto.indexOf("m1|") !== 0, "시간표와 연결이 남음");
+  sessNow(E); eq(E.ctx.extraFixes(), [], "📌 로 되살아남");
 });
 test("📌 해제 — 곡·메모를 적은 회차도 '지우기' 면 지운다", async () => {
   const E = fixEnv(true); sess(E, "h1", { memo: "m" });
   E.ctx.onFixesChanged([T1], [], {}); await tick(5);
   eq(E.ctx.asked.length, 1, "물음"); ok(!E.db.get("bandData/K/sessions/h1"), "안 지워짐");
+});
+test("📌 해제 — 남긴 회차를 같은 시간에 다시 📌 하면 새로 만들지 않고 다시 잇는다", async () => {
+  const E = fixEnv(false); sess(E, "h1", { songs: ["s1"] });
+  E.ctx.onFixesChanged([T1], [], {}); await tick(5);
+  sessNow(E);
+  E.ctx.onFixesChanged([], [T1], { [T1]: "합주" }); await tick(5);
+  eq(E.db.list("bandData/K/sessions").length, 1, "회차 수");
+  const s = E.db.get("bandData/K/sessions/h1"); eq([s.auto, s.fixNote, s.songs], ["m1|" + T1, "합주", ["s1"]]);
+});
+test("(그대로) 직접 넣은 이력 '예정' 은 📌 로 보인다", async () => {
+  const E = fixEnv(true); sess(E, "h1", { auto: "" });
+  eq(E.ctx.extraFixes(), [T1]);
+});
+test("📌 여러 개 해제 — 하나씩 묻고, 앞의 것이 확인 없이 남겨지지 않는다", async () => {
+  const E = fixEnvOne(), T2 = "2026-10-12 10:00~12:00";
+  sess(E, "h1", { memo: "m" }); sess(E, "h2", { date: "2026-10-12", from: "10:00", to: "12:00", auto: "m1|" + T2, songs: ["s1"] });
+  E.ctx.onFixesChanged([T1, T2], [], {}); await tick(5);
+  eq(E.ctx.asked.length, 1, "한 번에 하나");
+  eq(E.db.get("bandData/K/sessions/h1").auto, "m1|" + T1, "대답 전에는 그대로");
+  E.ctx.answer(true); await tick(5);
+  ok(!E.db.get("bandData/K/sessions/h1"), "첫째 지움");
+  eq(E.ctx.asked.length, 2, "둘째를 물음");
+  E.ctx.answer(false); await tick(5);
+  const s = E.db.get("bandData/K/sessions/h2"); ok(s, "둘째 남김"); ok(s.auto.indexOf("m1|") !== 0, "연결 끊김");
+});
+test("📌 여러 개 해제 — 묻는 사이 밴드를 나가도 원래 밴드 회차를 고친다", async () => {
+  const E = fixEnvOne(), T2 = "2026-10-12 10:00~12:00";
+  sess(E, "h1", { memo: "m" }); sess(E, "h2", { date: "2026-10-12", from: "10:00", to: "12:00", auto: "m1|" + T2, songs: ["s1"] });
+  E.ctx.onFixesChanged([T1, T2], [], {}); await tick(5);
+  E.run(`KEY = ""; M = ""; SESS = [];`);
+  E.ctx.answer(true); await tick(5);
+  E.ctx.answer(true); await tick(5);
+  eq(E.db.list("bandData/K/sessions"), [], "둘 다 지움");
 });
 
 /* ── 곡·회차 수정 창 ── */
@@ -133,8 +255,14 @@ var histEditing = null, hAbsent = new Map(), hSongs = new Set(), hStatus = "예�
 function closeModal(){} function renderSongs(){} function ls(){ return ""; } function todayIso(){ return "2026-11-05"; }
 function newId(p){ return p + "new"; } function fmtFull(d){ return d; } function buildParts(){ return $("#parts").value; }
 `;
+/* 페이지는 ../when/sched.js 를 함께 싣는다 — 쓰는 조각만 진짜 파일에서 가져온다 */
+function schedBits(){
+  const L = require("fs").readFileSync(require("path").join(__dirname, "..", "..", "when", "sched.js"), "utf8").split(/\r?\n/);
+  const a = L.findIndex(l => l.startsWith("function cleanFixNotes(")), z = L.findIndex((l, i) => i > a && /^\}/.test(l));
+  return L.slice(a, z + 1).concat(L.filter(l => l.startsWith("const FIXED_MAX"))).join("\n");
+}
 function formEnv(){
-  const E = load(["spotOf", "autoOf", "fromField", "fmtAbs", "syncSchedFix", { line: '$("#f_save").onclick' }, { line: '$("#h_save").onclick' }, { code: FORM }]);
+  const E = load(["spotOf", "autoOf", "fromField", "fmtAbs", "syncSchedFix", { line: '$("#f_save").onclick' }, { line: '$("#h_save").onclick' }, { optLine: "const UNPINNED" }, { code: FORM + schedBits() }]);
   E.run(`KEY = "K";`);
   return E;
 }
@@ -183,6 +311,24 @@ test("이력 → 📌 옮기기 — 읽고 쓰는 사이 다른 사람의 확정
   await E.ctx.syncSchedFix({ sid: "m1", key: T1 }, "move", "2026-10-11 18:00~21:00");
   const m = E.db.get(P);
   eq(m.fixed, "2026-10-11 18:00~21:00, " + T2, "fixed"); eq(m.fixNotes, { "2026-10-11 18:00~21:00": "합주" }, "fixNotes");
+});
+test("이력 → 📌 옮기기 — 옛 문자열 fixNotes 가 깨지지 않는다", async () => {
+  const E = formEnv(), P = "bandData/K/scheds/m1";
+  E.db.put(P, { title: "t", fixed: T1, fixNotes: JSON.stringify({ [T1]: "합주" }), picks: [] });
+  await E.ctx.syncSchedFix({ sid: "m1", key: T1 }, "move", "2026-10-11 18:00~21:00");
+  eq(E.db.get(P).fixNotes, { "2026-10-11 18:00~21:00": "합주" }, "fixNotes");
+});
+test("이력 → 📌 옮기기 — fixed 가 400자를 넘으면 쓰지 않고 알린다 (규칙이 거절한다)", async () => {
+  const E = formEnv(), P = "bandData/K/scheds/m1";
+  const many = Array.from({ length: 16 }, (_, i) => "2026-11-" + String(i + 1).padStart(2, "0") + " 10:00~12:00").join(", ");
+  E.db.put(P, { title: "t", fixed: many, fixNotes: {}, picks: [] });
+  let err = "";
+  await E.ctx.syncSchedFix({ sid: "m1", key: T1 }, "move", "2026-12-01 18:00~21:00").catch(e => { err = e.message; });
+  eq(err, E.get("FIXED_FULL"), "알림"); eq(E.db.get(P).fixed, many, "fixed 그대로");
+});
+test("이력에 남긴 회차(📌 해제) — 시간표와 이어진 회차로 읽지 않는다", () => {
+  const E = formEnv();
+  eq(E.ctx.autoOf({ auto: E.get("UNPINNED") }), null);
 });
 
 test("index.html 본 스크립트가 문법 오류 없이 읽힌다", () => {
