@@ -727,7 +727,14 @@ function onFixesChanged(before, after, notes){
     }).then(() => setStatus("🎸 이력에 " + fmtFull(p.d) + " " + (notes[t] || "합주") + " 넣었어요", "ok")).catch(e => setStatus("이력에 못 넣었어요 — " + errText(e), "err"));
   });
   before.filter(t => after.indexOf(t) < 0).forEach(t => {
-    SESS.filter(s => s.auto === tag(t) && s.status === "예정").forEach(s => dataRef().collection("sessions").doc(s.id).delete().catch(() => {}));
+    SESS.filter(s => s.auto === tag(t) && s.status === "예정").forEach(s => {
+      const ref = dataRef().collection("sessions").doc(s.id);
+      if (!(s.songs || []).length && !s.memo){ ref.delete().catch(() => {}); return; }
+      /* 합주곡·메모를 적어 둔 회차는 묻고 지운다. 남기면 시간표와 연결(auto)만 끊어 이력의 '예정' 으로 둔다 (2026-11-05 검토) */
+      ask({ title: "합주 이력('예정')도 지울까요?", text: fmtPick(t) + "\n이 회차에 적어 둔 합주곡·메모도 같이 지워져요. 취소하면 이력에 남겨요.", ok: "지우기", danger: true })
+        .then(yes => yes ? ref.delete() : ref.update({ auto: "" }))
+        .catch(e => setStatus("이력을 못 고쳤어요 — " + errText(e), "err"));
+    });
   });
 }
 
