@@ -1057,7 +1057,11 @@ $("#f_save").onclick = () => {
               key: $("#f_key").value.trim(), picker: $("#f_picker").value.trim(), links: $("#f_links").value.trim(),
               parts: buildParts().slice(0, 600), tuning: $("#f_tuning").value.trim(), memo: $("#f_memo").value.trim() };
   if (!p.title){ setStatus("곡 제목을 적어주세요", "err"); return; }
-  const w = songEditing ? songRef(songEditing.id).update(p)
+  /* 고칠 때는 바꾼 칸만 — 창을 연 사이 다른 사람이 바꾼 칸(투표곡으로 옮기기 등)을 덮어쓰지 않게 (2026-11-05 검토).
+     옛 문서에 없는 칸은 같이 보낸다 (규칙이 모든 칸을 본다) */
+  const o = songEditing, up = {};
+  if (o) Object.keys(p).forEach(k => { if (o[k] === undefined || p[k] !== (k === "status" ? spotOf(o.status) : o[k])) up[k] = p[k]; });
+  const w = songEditing ? (Object.keys(up).length ? songRef(songEditing.id).update(up) : Promise.resolve())
                         : songRef(newId("s")).set(Object.assign(p, { added: todayIso(), votes: {} }));
   closeModal("songModal");
   songView = p.status; ls("bm_songview", p.status); voteOrder = null;
@@ -1254,15 +1258,18 @@ $("#h_copyPrev").onclick = () => {
 function autoOf(h){ const i = (h.auto || "").indexOf("|"); return i < 0 ? null : { sid: h.auto.slice(0, i), key: h.auto.slice(i + 1) }; }
 async function syncSchedFix(a, mode, newKey){
   const ref = dataRef().collection("scheds").doc(a.sid);
-  const snap = await ref.get(); if (!snap.exists) return;
-  const m = snap.data();
-  const list = String(m.fixed || "").split(/\s*,\s*/).filter(t => t && t !== a.key);
-  const notes = Object.assign({}, m.fixNotes || {}), note = notes[a.key] || "";
-  delete notes[a.key];
-  let picks = (m.picks || []).slice();
-  if (mode === "move"){ list.push(newKey); if (note) notes[newKey] = note; }
-  if (mode === "pick" && picks.length < 20){ picks = Array.from(new Set(picks.concat([a.key]))).sort(); if (note) notes[a.key] = note; }
-  await ref.update({ fixed: Array.from(new Set(list)).sort().join(", "), fixNotes: notes, picks, updatedAt: FV.serverTimestamp() });
+  /* 트랜잭션 — 읽고 쓰는 사이 다른 사람이 정한 📌 를 지우지 않게 (2026-11-05 검토) */
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref); if (!snap.exists) return;
+    const m = snap.data();
+    const list = String(m.fixed || "").split(/\s*,\s*/).filter(t => t && t !== a.key);
+    const notes = Object.assign({}, m.fixNotes || {}), note = notes[a.key] || "";
+    delete notes[a.key];
+    let picks = (m.picks || []).slice();
+    if (mode === "move"){ list.push(newKey); if (note) notes[newKey] = note; }
+    if (mode === "pick" && picks.length < 20){ picks = Array.from(new Set(picks.concat([a.key]))).sort(); if (note) notes[a.key] = note; }
+    tx.update(ref, { fixed: Array.from(new Set(list)).sort().join(", "), fixNotes: notes, picks, updatedAt: FV.serverTimestamp() });
+  });
 }
 /* 시간 칸(type=time)은 24:00 을 못 담는다 → 칸에는 00:00, 저장할 때 끝이 00:00 이면 24:00 (싱크룸 22–24) */
 function toField(v){ return v === "24:00" ? "00:00" : (v || ""); }
@@ -1282,7 +1289,10 @@ $("#h_save").onclick = () => {
       else { p.auto = ""; sync = () => syncSchedFix(a, "drop"); }
     }
   }
-  const w = histEditing ? sessRef(histEditing.id).update(p) : sessRef(newId("h")).set(Object.assign(p, { added: todayIso(), auto: "" }));
+  /* 고칠 때는 바꾼 칸만 — 창을 연 사이 다른 사람이 넣은 불참·곡을 덮어쓰지 않게 (2026-11-05 검토). 옛 문서에 없는 칸은 같이 */
+  const o = histEditing, up = {};
+  if (o) Object.keys(p).forEach(k => { if (o[k] === undefined || JSON.stringify(p[k]) !== JSON.stringify(o[k])) up[k] = p[k]; });
+  const w = histEditing ? (Object.keys(up).length ? sessRef(histEditing.id).update(up) : Promise.resolve()) : sessRef(newId("h")).set(Object.assign(p, { added: todayIso(), auto: "" }));
   closeModal("histModal");
   w.then(() => sync && sync())
    .then(() => setStatus(fmtFull(p.date) + " 회차 저장됨" + (sync ? " — 시간표 📌 도 맞췄어요" : ""), "ok"))
