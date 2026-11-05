@@ -536,15 +536,19 @@ function closeBand(){
   B = ""; KEY = ""; BD = null; SCHEDS = []; SONGS = []; SESS = [];
   M = ""; ST = { meet:null }; me = ""; dirty = false;
 }
+let openSeq = 0;                      // 밴드 열기 차례 — 기다리는 사이 다른 밴드를 열면 먼저 것은 그만둔다 (2026-11-05 검토)
 async function openBand(bid){
   if (dirty && !await ask({ title: "저장하지 않은 표시가 있어요", text: "그래도 다른 밴드로 옮길까요?", ok: "옮기기" })) return;
   closeBand();
+  const seq = ++openSeq;
   B = bid;
   const b = bandOf(bid) || await db.collection("bands").doc(bid).get().then(s => s.exists ? Object.assign({ id: s.id }, s.data()) : null).catch(() => null);
+  if (seq !== openSeq) return;
   if (!b){ B = ""; renderAll(); setStatus("없는 밴드예요 — 링크를 다시 확인해 주세요", "err"); return; }
   watchBand(bid);
   const key = await keyOf(bid);
   const snap = await db.collection("bandData").doc(key).get().catch(() => null);
+  if (seq !== openSeq) return;
   if (!snap || !snap.exists){ renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return; }
   KEY = key; BD = snap.data();
   ls("bm_last", bid); mineAdd(bid);
