@@ -551,7 +551,12 @@ async function openBand(bid){
   me = ls("bm_me:" + bid);
   const want = new URLSearchParams(location.search).get("t") || ls("bm_t:" + bid);
   bandUnsub.push(dataRef().onSnapshot(s => {
-    if (!s.exists){ return; } BD = s.data(); renderAll();
+    if (!s.exists){ return; }
+    const was = bmMembers(); BD = s.data();
+    /* 누가 멤버를 빼거나 이름을 바꿨다 → 시간표 people 은 뒤따라 고쳐진다. 그 사이 syncMembers 가 되살리지 않게 (2026-11-05 검토) */
+    const gone = was.filter(n => !bmMembers().includes(n));
+    if (gone.length) holdSync(gone, bmMembers().filter(n => !was.includes(n)));
+    renderAll();
     if (!$("#tSetModal").hidden) renderBsMembers();                // 멤버 추가가 설정 창에 바로 보이게
   }));
   bandUnsub.push(SCHED_COL().onSnapshot(s => {
@@ -635,6 +640,11 @@ $("#tn_go").onclick = async () => {
 $("#tn_name").addEventListener("keydown", e => { if (e.key === "Enter") $("#tn_go").click(); });
 /** 밴드 멤버 ↔ 시간표 참여자를 맞춘다 — 빠진 멤버는 시간표에 넣고, 시간표에서 새로 생긴 이름은 멤버로 */
 const syncTried = new Set();
+/** 맞추기에서 뺀다 — gone: 밴드에서 빠진 이름(시간표에 남아 있어도 다시 넣지 않게) · added: 시간표에 새로 넣지 않을 이름(이름 바꾸기의 새 이름) */
+function holdSync(gone, added){
+  gone.forEach(n => syncTried.add(KEY + "band|" + n));
+  added.forEach(n => SCHEDS.forEach(s => syncTried.add(KEY + s.id + "|" + n)));
+}
 function syncMembers(){
   /* ⚠️ 화면의 ST 는 지난 화면 캐시일 수 있다 → **서버에서 막 받은 것(buildST)** 으로만 맞춘다 */
   if (!M || !BD || !KEY || live.id !== M || !live.done || live.meetState !== "ok" || live.peopleCache) return;
@@ -1344,13 +1354,31 @@ function moveMember(i, dir){
   if (BD) BD.members = a;                                         // 바로 반영 (스냅샷이 곧 확정)
   if (ST && Array.isArray(ST.members)){ const k = n => { const x = a.indexOf(n); return x < 0 ? 1e6 : x; }; ST.members.sort((p, q) => k(p) - k(q)); }
   renderBsMembers(); renderAll();
-  dataRef().update({ members: a }).catch(e => setStatus("실패 — " + errText(e), "err"));
+  /* 서버 값에서 두 이름만 맞바꾼다 — 그 사이 다른 사람이 넣은 멤버를 덮어쓰지 않게 (2026-11-05 검토) */
+  const x = a[j], y = a[i];
+  db.runTransaction(async t => {
+    const cur = (((await t.get(dataRef())).data() || {}).members || []).slice(), p = cur.indexOf(x), q = cur.indexOf(y);
+    if (p < 0 || q < 0) return;
+    [cur[p], cur[q]] = [cur[q], cur[p]];
+    t.update(dataRef(), { members: cur });
+  }).catch(e => setStatus("실패 — " + errText(e), "err"));
 }
 /** 이름 바꾸기 — 멤버 목록 · 모든 시간표 · 좋아요 · 세션 · 불참 까지 */
 async function renameMember(from, to){
   if (bmMembers().includes(to)){ setStatus(to + " 은 이미 있어요", "err"); return; }
   try {
-    await dataRef().update({ members: bmMembers().map(x => x === from ? to : x) });
+    /* 서버 값에서 그 이름만 바꾼다 (트랜잭션) — 그 사이 다른 사람이 고친 멤버를 덮어쓰지 않게 (2026-11-05 검토) */
+    const a = await db.runTransaction(async t => {
+      const cur = ((await t.get(dataRef())).data() || {}).members || [];
+      if (cur.includes(to)) throw new Error(to + " 은 이미 있어요");
+      if (!cur.includes(from)) throw new Error(from + " 님은 이미 없어요");
+      const a = cur.map(x => x === from ? to : x);
+      t.update(dataRef(), { members: a });
+      return a;
+    });
+    /* 시간표 people 은 아래에서 하나씩 고친다 → 그 사이 syncMembers 가 옛 이름을 되살리거나 새 이름 문서를 또 만들지 않게 */
+    holdSync([from], [to]);
+    if (BD) BD.members = a;
     for (const s of SCHEDS){
       const ps = await SCHED_COL().doc(s.id).collection("people").where("name", "==", from).get();
       for (const d of ps.docs) await d.ref.update({ name: to });
