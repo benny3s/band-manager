@@ -190,7 +190,11 @@ body:not(.is-admin) .adm{display:none!important}
       <div class="chips" id="songSeg"></div>
       <div class="spread" style="margin-top:12px">
         <p class="hint" style="margin:0" id="songHint"></p>
-        <button class="btn primary sm" id="songNew" type="button" style="flex:0 0 auto">＋ 곡 추가</button>
+        <!-- ✍️ 작곡 = Music Lab 작곡 탭 (2026-11-06 Benny "작곡 어디서 가능? 밴드매니저에 안 보여"). 곡 내용 원본은 Music Lab, 여기는 띄우기만 -->
+        <div class="row tight nowrap" style="flex:0 0 auto">
+          <a class="btn sm" id="songWrite" target="_blank" rel="noopener" style="text-decoration:none">✍️ 작곡</a>
+          <button class="btn primary sm" id="songNew" type="button">＋ 곡 추가</button>
+        </div>
       </div>
     </div>
     <div id="songList"></div>
@@ -399,7 +403,7 @@ body:not(.is-admin) .adm{display:none!important}
      bandData/{key}              멤버 목록. key = sha256(bid + ":")
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-11-05a";
+const BUILD = "2026-11-06a";
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -917,6 +921,7 @@ function renderSongs(){
     seg.appendChild(b);
   });
   $("#songHint").textContent = spec.hint;
+  $("#songWrite").href = "https://benny3s.github.io/music/?bm=" + encodeURIComponent(B) + "#write";  // 🎧 연습과 같은 밴드 링크 로그인
   let list = SONGS.filter(s => spotOf(s.status) === spec.key);
   list = spec.key === "후보" ? orderVotes(list) : list.sort((a, b) => String(a.added || "").localeCompare(String(b.added || "")));
   const box = $("#songList"); box.innerHTML = "";
