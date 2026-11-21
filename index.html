@@ -15,7 +15,7 @@
 <meta property="og:description" content="합주 되는 날 ○ △ ✕ · 합주곡 · 합주 이력">
 <meta property="og:image" content="https://benny3s.github.io/band-manager/og.png">
 <!-- 디자인·일정 기능은 약속 잡자와 **같은 파일**을 쓴다 (2026-09-28 Benny: "코드 중복 없이 공용으로") -->
-<link rel="stylesheet" href="../when/ui.css?v=2026-10-10b">
+<link rel="stylesheet" href="../when/ui.css?v=2026-11-21a">
 <style>
 /* ═══ 밴드매니저에만 있는 것 — 탭 · 시간표 칩 · 합주곡 · 이력 ═══ */
 /* 탭 — 크게, 고른 탭은 초록으로 꽉 (2026-10-09 Benny: 여행 가자와 같이 "탭이 너무 눈에 안 띄어") */
@@ -147,6 +147,14 @@ body:not(.is-admin) .adm{display:none!important}
   </div>
 </section>
 
+<!-- 밴드 불러오는 중 (느린 네트워크에서 빈 화면 대신 안내 · 2026-11-21) -->
+<section id="view-loading" hidden>
+  <div class="card" style="text-align:center;padding:32px 18px">
+    <div style="font-size:28px;margin-bottom:8px">🎸</div>
+    <p class="hint" style="margin:0">밴드를 불러오는 중…</p>
+  </div>
+</section>
+
 <section id="view-band" hidden>
   <div class="tabs" role="tablist">
     <button role="tab" id="tab-sched" type="button" aria-selected="true">📅 일정</button>
@@ -196,6 +204,7 @@ body:not(.is-admin) .adm{display:none!important}
           <button class="btn primary sm" id="songNew" type="button">＋ 곡 추가</button>
         </div>
       </div>
+      <input type="search" id="songQ" placeholder="곡 제목 · 아티스트 · 파트 · 선곡자 검색" style="margin-top:10px" hidden>
     </div>
     <div id="songList"></div>
   </div>
@@ -367,8 +376,8 @@ body:not(.is-admin) .adm{display:none!important}
         <label class="fld" style="flex:0 1 100px"><span>끝</span><input type="time" id="h_to" step="300"></label>
       </div>
       <div class="row nowrap">
-        <label class="fld" style="flex:2 1 0"><span>합주실</span><input type="text" id="h_place" maxlength="30" placeholder="그루브 사당점"></label>
-        <label class="fld" style="flex:1 1 0"><span>룸</span><input type="text" id="h_room" maxlength="15" placeholder="C룸"></label>
+        <label class="fld" style="flex:2 1 0"><span>합주실</span><input type="text" id="h_place" maxlength="50" placeholder="그루브 사당점"></label>
+        <label class="fld" style="flex:1 1 0"><span>룸</span><input type="text" id="h_room" maxlength="25" placeholder="C룸"></label>
       </div>
       <div class="fld"><span>상태</span><div class="chips" id="h_status"></div></div>
       <div class="fld"><span>불참 — 누르면 이유 칸이 생겨요 (일정의 ✕ 이유로 미리 채움)</span>
@@ -393,7 +402,7 @@ body:not(.is-admin) .adm{display:none!important}
     <div data-sched="who"></div>
   </div>
 </div>
-<script src="../when/core.js?v=2026-11-05a"></script>
+<script src="../when/core.js?v=2026-11-21a"></script>
 <script src="../when/sched.js?v=2026-11-05a"></script>
 <script>/* 밴드매니저 — benny3s.github.io/band-manager/  (2026-09-28 Firestore 로 새로 만듦)
    일정(누구세요·표·○△✕·결과·📌)은 약속 잡자와 같은 sched.js — 시간표 하나 = 약속 하나.
@@ -403,7 +412,13 @@ body:not(.is-admin) .adm{display:none!important}
      bandData/{key}              멤버 목록. key = sha256(bid + ":")
        /scheds/{sid} (+people)   시간표 = 약속 잡자의 약속과 같은 모양
        /songs/{id}  /sessions/{id}                                                                  */
-const BUILD = "2026-11-06a";
+const BUILD = "2026-11-21a";
+const TAB_KO = { sched: "일정", song: "합주곡", hist: "이력" };
+window.FEEDBACK_WHO = () => me || "";
+window.FEEDBACK_TITLE = () => {
+  const b = bandOf(B);
+  return b ? b.name + " · " + (TAB_KO[tab] || tab) : "밴드매니저";
+};
 
 /* ── sched.js 에 알려 줄 것 ── */
 function memberOrder(){ return bmMembers(); }                   // 표의 사람 순서 = 밴드 멤버 순서
@@ -549,14 +564,24 @@ async function openBand(bid){
   closeBand();
   const seq = ++openSeq;
   B = bid;
+  renderAll();
   const b = bandOf(bid) || await db.collection("bands").doc(bid).get().then(s => s.exists ? Object.assign({ id: s.id }, s.data()) : null).catch(() => null);
   if (seq !== openSeq) return;
-  if (!b){ B = ""; renderAll(); setStatus("없는 밴드예요 — 링크를 다시 확인해 주세요", "err"); return; }
+  if (!b){
+    B = "";
+    if (ls("bm_last") === bid) ls("bm_last", "");
+    if (typeof mineIds === "function") ls("bm_mine", JSON.stringify(mineIds().filter(x => x !== bid)));
+    setUrl(); renderAll(); setStatus("없는 밴드예요 — 링크를 다시 확인해 주세요", "err"); return;
+  }
   watchBand(bid);
   const key = await keyOf(bid);
   const snap = await db.collection("bandData").doc(key).get().catch(() => null);
   if (seq !== openSeq) return;
-  if (!snap || !snap.exists){ B = ""; renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return; }
+  if (!snap || !snap.exists){
+    B = "";
+    if (ls("bm_last") === bid) ls("bm_last", "");
+    setUrl(); renderAll(); setStatus("밴드 데이터를 찾지 못했어요", "err"); return;
+  }
   KEY = key; BD = snap.data();
   ls("bm_last", bid); mineAdd(bid);
   me = ls("bm_me:" + bid);
@@ -783,6 +808,7 @@ function renderAll(){
   $("#foot").textContent = "밴드매니저 " + BUILD + (document.body.classList.contains("is-admin") ? " · 관리자" : "") + (lastMs ? " · 서버 " + (lastMs/1000).toFixed(1) + "초" : "");
   const inBand = !!(B && KEY);
   $("#view-band").hidden = !inBand;
+  $("#view-loading").hidden = !(B && !KEY);
   $("#view-none").hidden = !!B || !bandsReady;
   $("#subtitle").textContent = inBand ? "" : "합주 일정 · 합주곡 · 이력";
   if (!inBand){ renderBandList(); return; }
@@ -917,17 +943,21 @@ function renderSongs(){
     const b = document.createElement("button"); b.type = "button"; b.className = "chip";
     b.textContent = v.tab + (n ? " " + n : "");
     b.setAttribute("aria-pressed", String(v.key === songView));
-    b.onclick = () => { songView = v.key; ls("bm_songview", v.key); voteOrder = null; renderSongs(); };
+    b.onclick = () => { songView = v.key; ls("bm_songview", v.key); voteOrder = null; if ($("#songQ")) $("#songQ").value = ""; renderSongs(); };
     seg.appendChild(b);
   });
   $("#songHint").textContent = spec.hint;
   $("#songWrite").href = "https://benny3s.github.io/music/?bm=" + encodeURIComponent(B) + "#write";  // 🎧 연습과 같은 밴드 링크 로그인
   let list = SONGS.filter(s => spotOf(s.status) === spec.key);
+  const sq = $("#songQ"), q = sq ? sq.value.trim().toLowerCase() : "";
+  if (sq) sq.hidden = list.length < 5 && !q;
+  if (q) list = list.filter(s => [s.title, s.artist, s.picker, s.parts, s.memo].some(v => String(v || "").toLowerCase().includes(q)));
   list = spec.key === "후보" ? orderVotes(list) : list.sort((a, b) => String(a.added || "").localeCompare(String(b.added || "")));
   const box = $("#songList"); box.innerHTML = "";
-  if (!list.length){ box.innerHTML = '<div class="empty">' + spec.empty + "</div>"; return; }
+  if (!list.length){ box.innerHTML = '<div class="empty">' + (q ? "찾는 곡이 없어요." : spec.empty) + "</div>"; return; }
   list.forEach(s => box.appendChild(songCard(s)));
 }
+if ($("#songQ")) $("#songQ").addEventListener("input", () => renderSongs());
 /** 받침 따라 조사 — 투표곡으로 / 보류로 (ㄹ 받침은 '로'). 한글이 아니면 '을(를)' 처럼 둘 다 */
 function josa(w, withB, noB){
   const c = String(w || "").trim().slice(-1).charCodeAt(0);
@@ -958,7 +988,7 @@ function songCard(s){
   if (s.tuning) badges.appendChild(Object.assign(document.createElement("span"), { className: "pill amber", textContent: s.tuning }));
   /* 🎧 연습 = Music Lab 의 그 곡 (2026-10-27 Benny "밴드매니저랑 Music Lab 둘이 sync").
      ?bm=밴드 id 로 Music Lab 이 이 밴드 친구로 로그인, #yt/영상 id 로 그 곡을 엶 — 아직 분석 안 했으면 Music Lab 합주곡 줄에서 ＋ 분석 */
-  const yt = (/(?:youtu\.be\/|[?&]v=|\/shorts\/)([\w-]{11})/.exec(s.links || "") || [])[1];
+  const yt = (/(?:youtu\.be\/|[?&]v=|\/(?:shorts|live|embed)\/)([\w-]{11})/.exec(s.links || "") || [])[1];
   if (yt){
     const a = document.createElement("a"); a.className = "lnk"; a.target = "_blank"; a.rel = "noopener"; a.textContent = "🎧 연습";
     a.href = "https://benny3s.github.io/music/?bm=" + encodeURIComponent(B) + "#yt/" + yt;
@@ -1234,7 +1264,7 @@ function renderHistPickers(){
   hAbsent.forEach((why, n) => {
     const r = document.createElement("div"); r.className = "sessrow";
     r.appendChild(Object.assign(document.createElement("span"), { className: "sn", textContent: n }));
-    const inp = Object.assign(document.createElement("input"), { type: "text", placeholder: "이유 (선택)", value: why });
+    const inp = Object.assign(document.createElement("input"), { type: "text", placeholder: "이유 (선택)", value: why, maxLength: 40 });
     inp.oninput = () => hAbsent.set(n, inp.value);
     r.appendChild(inp); wb.appendChild(r);
   });
